@@ -13,7 +13,7 @@ struct MusicApp: App {
     }
 }
 
-/// One library store shared by the UI, App Intents (Siri, widgets, Control Center) and CarPlay.
+/// One library store shared by the UI and App Intents (Siri, widgets, Control Center).
 @MainActor
 enum MusicStore {
     static let container: ModelContainer = {

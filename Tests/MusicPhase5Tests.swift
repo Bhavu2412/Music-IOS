@@ -74,40 +74,4 @@ final class MusicPhase5Tests: XCTestCase {
         XCTAssertEqual(LyricsService.parse("just words\nmore"), .plain("just words\nmore"))
         XCTAssertNil(LyricsService.parse("   "))
     }
-
-    func testCloudSyncMergesAcrossDevicesByTitleAndArtist() throws {
-        func device() throws -> (ModelContext, Track, Track) {
-            let container = try ModelContainer(for: Track.self, Playlist.self, Album.self,
-                                               configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-            let context = ModelContext(container)
-            // Same songs, different IDs per device (as after importing separately).
-            let a = Track(title: "Song A", artist: "Band", bookmarkData: Data(), originalFilename: "a.mp3")
-            let b = Track(title: "Song B", artist: "Band", bookmarkData: Data(), originalFilename: "b.mp3")
-            context.insert(a); context.insert(b)
-            return (context, a, b)
-        }
-        let (phone, phoneA, phoneB) = try device()
-        let (pad, padA, padB) = try device()
-        let t0 = Date(timeIntervalSince1970: 1_000)
-
-        // Phone: favorite A, make a playlist [B, A].
-        phoneA.isFavorite = true
-        let mix = Playlist(name: "Mix", trackIDs: [phoneB.id, phoneA.id])
-        phone.insert(mix)
-        let phoneState = CloudState.local(tracks: [phoneA, phoneB], playlists: [mix], since: CloudState(), now: t0)
-
-        // iPad pulls it.
-        let padState = CloudState.local(tracks: [padA, padB], playlists: [], since: CloudState(), now: t0)
-        let merged = padState.merged(with: phoneState)
-        merged.apply(to: [padA, padB], playlists: [], in: pad)
-        XCTAssertTrue(padA.isFavorite)
-        let padPlaylists = try pad.fetch(FetchDescriptor<Playlist>())
-        XCTAssertEqual(padPlaylists.first?.trackIDs, [padB.id, padA.id])
-
-        // iPad deletes the playlist later; the tombstone wins on the phone.
-        let afterDelete = CloudState.local(tracks: [padA, padB], playlists: [], since: merged, now: t0.addingTimeInterval(60))
-        afterDelete.merged(with: phoneState).apply(to: [phoneA, phoneB], playlists: [mix], in: phone)
-        try phone.save()
-        XCTAssertTrue(try phone.fetch(FetchDescriptor<Playlist>()).isEmpty, "tombstone should delete the playlist")
-    }
 }

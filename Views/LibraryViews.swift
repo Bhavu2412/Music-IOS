@@ -41,7 +41,6 @@ enum LibrarySection: String, CaseIterable, Identifiable {
 struct LibraryTabsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \Track.dateAdded, order: .reverse) private var tracks: [Track]
     @Query(sort: \Playlist.createdAt, order: .reverse) private var playlists: [Playlist]
     @StateObject private var viewModel = LibraryViewModel()
@@ -238,10 +237,6 @@ struct LibraryTabsView: View {
             restorePlaybackIfReady()
             await importDocumentsIfAny()
             MusicShortcuts.updateAppShortcutParameters()
-            CloudSyncService.shared.start()
-        }
-        .onChange(of: scenePhase) {
-            if scenePhase == .background { CloudSyncService.shared.sync() }
         }
         .onChange(of: playlists.map(\.name)) {
             // Keep Siri's list of playlist names current.

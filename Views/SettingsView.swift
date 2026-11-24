@@ -3,7 +3,6 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("music.feedURLs") private var feedURLsStorage: [String] = []
     @AppStorage(Haptics.enabledKey) private var hapticsEnabled = true
-    @AppStorage(CloudSyncService.enabledKey) private var iCloudSync = true
     @ObservedObject private var playback = PlaybackService.shared
     @State private var sleepTimer = SleepTimerService.shared
     @State private var draftURL = ""
@@ -76,17 +75,6 @@ struct SettingsView: View {
                 }
 
                 settingsSection("LIBRARY AND OFFLINE") {
-                    settingsToggle(.iCloud, title: "iCloud sync", isOn: Binding(
-                        get: { iCloudSync },
-                        set: { iCloudSync = $0; if $0 { CloudSyncService.shared.start() } }
-                    ))
-                    Text("Syncs favorites and playlists between your devices. Songs are matched by title and artist; audio files stay on each device.")
-                        .font(DesignSystem.caption)
-                        .foregroundStyle(DesignSystem.AppColors.secondaryText)
-                        .padding(.leading, 42)
-                        .padding(.bottom, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    sectionDivider
                     settingsRow(.offline, title: "Offline mode") {
                         Text("Automatic")
                             .font(DesignSystem.subhead)
