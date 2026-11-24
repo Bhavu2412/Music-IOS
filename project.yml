@@ -25,6 +25,13 @@ targets:
           - audio
         UILaunchScreen: {}
         NSSupportsLiveActivities: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneClassName: CPTemplateApplicationScene
+                UISceneConfigurationName: CarPlay
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UISupportedInterfaceOrientations~ipad:
@@ -75,9 +82,11 @@ targets:
     sources:
       - path: Widgets
       - path: Services/WidgetDataService.swift
+      - path: Intents/MusicAppIntents.swift
     settings:
       base:
         PRODUCT_NAME: MusicWidgetsExtension
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
         PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.Music.Widgets
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO

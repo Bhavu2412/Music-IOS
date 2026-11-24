@@ -41,6 +41,7 @@ enum LibrarySection: String, CaseIterable, Identifiable {
 struct LibraryTabsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \Track.dateAdded, order: .reverse) private var tracks: [Track]
     @Query(sort: \Playlist.createdAt, order: .reverse) private var playlists: [Playlist]
     @StateObject private var viewModel = LibraryViewModel()
@@ -236,6 +237,15 @@ struct LibraryTabsView: View {
         .task {
             restorePlaybackIfReady()
             await importDocumentsIfAny()
+            MusicShortcuts.updateAppShortcutParameters()
+            CloudSyncService.shared.start()
+        }
+        .onChange(of: scenePhase) {
+            if scenePhase == .background { CloudSyncService.shared.sync() }
+        }
+        .onChange(of: playlists.map(\.name)) {
+            // Keep Siri's list of playlist names current.
+            MusicShortcuts.updateAppShortcutParameters()
         }
         .onChange(of: tracks.count) {
             restorePlaybackIfReady()
@@ -2356,6 +2366,7 @@ private struct NowPlayingView: View {
     @State private var showingCreatePlaylist = false
     @State private var showingQueue = false
     @State private var trackToEdit: Track?
+    @AppStorage("music.showLyrics") private var showingLyrics = false
 
     private func showQueue() { showingQueue = true }
 
@@ -2443,6 +2454,13 @@ private struct NowPlayingView: View {
 
                 if let track = playback.currentTrack {
                     VStack(spacing: 18) {
+                        if showingLyrics {
+                            LyricsView(track: track, playback: playback, clock: playback.clock) {
+                                trackToEdit = track
+                            }
+                            .frame(height: min(geometry.size.width - 44, 320))
+                            .transition(.opacity)
+                        } else {
                         // Artwork with breathing scale, drop shadow, and horizontal swipe
                         DesignSystem.ArtworkView(
                             data: track.artworkData,
@@ -2469,6 +2487,8 @@ private struct NowPlayingView: View {
                                     }
                                 }
                         )
+                            .transition(.opacity)
+                        }
 
                         // Title, Artist and Heart Favorite Button
                         HStack(spacing: 12) {
@@ -2483,6 +2503,19 @@ private struct NowPlayingView: View {
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 0)
+
+                            Button {
+                                withAnimation(DesignSystem.Motion.spring) { showingLyrics.toggle() }
+                                Haptics.selection()
+                            } label: {
+                                Image(systemName: showingLyrics ? "quote.bubble.fill" : "quote.bubble")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(showingLyrics ? DesignSystem.AppColors.accent : DesignSystem.AppColors.secondaryText)
+                                    .frame(width: 46, height: 46)
+                                    .glassCircle()
+                            }
+                            .buttonStyle(DesignSystem.PremiumPressStyle())
+                            .accessibilityLabel(showingLyrics ? "Hide lyrics" : "Show lyrics")
 
                             Button {
                                 withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {

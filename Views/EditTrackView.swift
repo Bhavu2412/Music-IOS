@@ -12,6 +12,7 @@ struct EditTrackView: View {
     @State private var artist: String
     @State private var albumTitle: String
     @State private var artworkData: Data?
+    @State private var lyrics: String
     @State private var photoItem: PhotosPickerItem?
     @State private var errorMessage: String?
 
@@ -21,6 +22,7 @@ struct EditTrackView: View {
         _artist = State(initialValue: track.artist)
         _albumTitle = State(initialValue: track.albumTitle)
         _artworkData = State(initialValue: track.artworkData)
+        _lyrics = State(initialValue: track.lyrics ?? "")
     }
 
     private var canSave: Bool {
@@ -61,6 +63,25 @@ struct EditTrackView: View {
                     LabeledContent("Album") {
                         TextField("Album", text: $albumTitle).multilineTextAlignment(.trailing)
                     }
+                }
+
+                Section {
+                    TextEditor(text: $lyrics)
+                        .font(.system(.body, design: .rounded))
+                        .frame(minHeight: 140)
+                        .overlay(alignment: .topLeading) {
+                            if lyrics.isEmpty {
+                                Text("Paste lyrics here")
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 5)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                } header: {
+                    Text("Lyrics")
+                } footer: {
+                    Text("Plain text, or LRC with timestamps like [01:23.45] to scroll along with the song.")
                 }
 
                 Section("File") {
@@ -117,6 +138,8 @@ struct EditTrackView: View {
         track.artist = clean(artist, fallback: "Unknown Artist")
         track.albumTitle = clean(albumTitle, fallback: "Unknown Album")
         track.artworkData = artworkData
+        let trimmedLyrics = lyrics.trimmingCharacters(in: .whitespacesAndNewlines)
+        track.lyrics = trimmedLyrics.isEmpty ? nil : trimmedLyrics
         do {
             try modelContext.save()
             Haptics.notify()

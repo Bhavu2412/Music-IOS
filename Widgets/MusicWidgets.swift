@@ -1,4 +1,5 @@
 import ActivityKit
+import AppIntents
 import SwiftUI
 import UIKit
 import WidgetKit
@@ -38,10 +39,47 @@ struct NowPlayingWidgetView: View {
                     Text("Nothing playing")
                         .font(.headline)
                 }
+                if family != .systemSmall, entry.state != nil {
+                    controls.padding(.top, 2)
+                }
             }
             Spacer(minLength: 0)
         }
+        .overlay(alignment: .topTrailing) {
+            if family == .systemSmall, let state = entry.state {
+                Button(intent: PlayPauseIntent()) {
+                    Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(width: 36, height: 36)
+                        .background(.tint.opacity(0.2), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(state.isPlaying ? "Pause" : "Play")
+            }
+        }
+        .tint(Color(red: 0.486, green: 0.514, blue: 1))
         .containerBackground(.fill.tertiary, for: .widget)
+    }
+
+    private var controls: some View {
+        HStack(spacing: 18) {
+            Button(intent: PreviousTrackIntent()) {
+                Image(systemName: "backward.fill")
+            }
+            .accessibilityLabel("Previous song")
+            Button(intent: PlayPauseIntent()) {
+                Image(systemName: entry.state?.isPlaying == true ? "pause.fill" : "play.fill")
+                    .font(.system(size: 20, weight: .bold))
+            }
+            .accessibilityLabel(entry.state?.isPlaying == true ? "Pause" : "Play")
+            Button(intent: NextTrackIntent()) {
+                Image(systemName: "forward.fill")
+            }
+            .accessibilityLabel("Next song")
+        }
+        .buttonStyle(.plain)
+        .font(.system(size: 16, weight: .semibold))
+        .foregroundStyle(.tint)
     }
 
     @ViewBuilder
@@ -125,10 +163,27 @@ struct Provider: TimelineProvider {
     }
 }
 
+/// Control Center / Lock Screen / Action button control (iOS 18+).
+@available(iOS 18.0, *)
+struct PlayPauseControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.yourcompany.Music.playPause") {
+            ControlWidgetButton(action: PlayPauseIntent()) {
+                Label("Play / Pause", systemImage: "playpause.fill")
+            }
+        }
+        .displayName("Play / Pause")
+        .description("Play or pause Music.")
+    }
+}
+
 @main
 struct MusicWidgets: WidgetBundle {
     var body: some Widget {
         NowPlayingWidget()
         NowPlayingLiveActivity()
+        if #available(iOS 18.0, *) {
+            PlayPauseControl()
+        }
     }
 }

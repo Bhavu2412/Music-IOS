@@ -20,6 +20,8 @@ final class Track {
     var isAvailableOffline: Bool
     var remoteURLString: String?
     var lastPlayedAt: Date?
+    /// Lyrics entered by the user (plain text or LRC).
+    var lyrics: String?
 
     init(
         id: UUID = UUID(),

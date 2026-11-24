@@ -1,66 +1,57 @@
+import AVFoundation
 import Foundation
 
 struct LyricLine: Identifiable, Equatable {
-    let id: UUID
+    let id: Int
     let time: TimeInterval
     let text: String
 }
 
-@MainActor
-protocol LyricsServicing {
-    func loadLyrics(for track: Track) async throws -> [LyricLine]
+enum Lyrics: Equatable {
+    case synced([LyricLine])
+    case plain(String)
 }
 
+/// Finds lyrics for a track: text saved on the track (pasted in Edit Info), a matching .lrc file
+/// next to the audio file, or lyrics embedded in the file's tags. LRC text is shown synced.
 @MainActor
-final class LyricsService: LyricsServicing {
-    func loadLyrics(for track: Track) async throws -> [LyricLine] {
-        let fileManager = FileManager.default
-        let trackURL = try LibraryService().resolveURL(for: track)
-        let directory = trackURL.deletingLastPathComponent()
-        let candidates = [
-            directory.appendingPathComponent(trackURL.deletingPathExtension().lastPathComponent + ".lrc"),
-            directory.appendingPathComponent((trackURL.deletingPathExtension().lastPathComponent + "-lyrics") + ".lrc")
-        ]
+enum LyricsService {
+    static func lyrics(for track: Track) async -> Lyrics? {
+        if let saved = track.lyrics, let parsed = parse(saved) { return parsed }
+        guard let url = try? LibraryService().resolveURL(for: track) else { return nil }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 
-        for candidate in candidates where fileManager.fileExists(atPath: candidate.path) {
-            let data = try Data(contentsOf: candidate)
-            return parseLRC(data)
+        let base = url.deletingPathExtension()
+        for candidate in [base.appendingPathExtension("lrc"), URL(fileURLWithPath: base.path + "-lyrics.lrc")] {
+            if let text = try? String(contentsOf: candidate, encoding: .utf8), let parsed = parse(text) {
+                return parsed
+            }
         }
-
-        return []
+        if let embedded = try? await AVURLAsset(url: url).load(.lyrics), let parsed = parse(embedded) {
+            return parsed
+        }
+        return nil
     }
 
-    private func parseLRC(_ data: Data) -> [LyricLine] {
-        let text = String(data: data, encoding: .utf8) ?? ""
-        let lines = text.components(separatedBy: .newlines)
-        let timestampPattern = try? NSRegularExpression(
-            pattern: #"^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$"#
-        )
-        var parsed: [LyricLine] = []
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard
-                let timestampPattern,
-                let match = timestampPattern.firstMatch(
-                    in: trimmed,
-                    range: NSRange(trimmed.startIndex..., in: trimmed)
-                ),
-                let minuteRange = Range(match.range(at: 1), in: trimmed),
-                let secondRange = Range(match.range(at: 2), in: trimmed),
-                let lyricRange = Range(match.range(at: 3), in: trimmed),
-                let minute = Double(trimmed[minuteRange]),
-                let second = Double(trimmed[secondRange])
-            else {
-                continue
+    /// LRC ("[mm:ss.xx] line", several stamps per line allowed) → synced; other text → plain.
+    static func parse(_ text: String) -> Lyrics? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let stamp = /\[(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)\]/
+        var lines: [(TimeInterval, String)] = []
+        for raw in trimmed.components(separatedBy: .newlines) {
+            let matches = raw.matches(of: stamp)
+            guard let last = matches.last else { continue }
+            let lyric = raw[last.range.upperBound...].trimmingCharacters(in: .whitespaces)
+            for match in matches {
+                let minutes = Double(match.output.1) ?? 0
+                let seconds = Double(match.output.2.replacingOccurrences(of: ":", with: ".")) ?? 0
+                lines.append((minutes * 60 + seconds, lyric))
             }
-            parsed.append(
-                LyricLine(
-                    id: UUID(),
-                    time: minute * 60 + second,
-                    text: String(trimmed[lyricRange])
-                )
-            )
         }
-        return parsed.sorted { $0.time < $1.time }
+        if lines.isEmpty { return .plain(trimmed) }
+        let sorted = lines.sorted { $0.0 < $1.0 }
+        return .synced(sorted.enumerated().map { LyricLine(id: $0.offset, time: $0.element.0, text: $0.element.1) })
     }
 }
