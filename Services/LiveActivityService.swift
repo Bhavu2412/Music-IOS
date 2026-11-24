@@ -12,7 +12,7 @@ final class LiveActivityService {
     func startActivity(track: Track, isPlaying: Bool) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         stopActivity()
-        let state = NowPlayingAttributes.ContentState(track: track.title, artist: track.artist, isPlaying: isPlaying)
+        let state = NowPlayingAttributes.ContentState(track: track.title, artist: track.artist, artworkData: track.artworkData, isPlaying: isPlaying)
         do {
             activity = try Activity.request(
                 attributes: NowPlayingAttributes(name: track.title),
@@ -25,7 +25,7 @@ final class LiveActivityService {
 
     func update(track: Track, isPlaying: Bool) {
         guard let activity else { return }
-        let state = NowPlayingAttributes.ContentState(track: track.title, artist: track.artist, isPlaying: isPlaying)
+        let state = NowPlayingAttributes.ContentState(track: track.title, artist: track.artist, artworkData: track.artworkData, isPlaying: isPlaying)
         Task { await activity.update(ActivityContent(state: state, staleDate: nil)) }
     }
 

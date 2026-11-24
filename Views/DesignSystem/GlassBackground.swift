@@ -42,6 +42,26 @@ struct GlassCapsuleModifier: ViewModifier {
     }
 }
 
+struct LiquidGlassCapsuleModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+                .background(DesignSystem.AppColors.backgroundSecondary, in: Capsule())
+                .overlay(Capsule().stroke(DesignSystem.AppColors.border, lineWidth: 1))
+        } else if #available(iOS 26.0, *) {
+            content
+                .glassEffect(.regular.tint(DesignSystem.AppColors.card), in: Capsule())
+                .overlay(Capsule().stroke(DesignSystem.AppColors.border, lineWidth: 1))
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(DesignSystem.AppColors.border, lineWidth: 1))
+        }
+    }
+}
+
 struct GlassCircleModifier: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 

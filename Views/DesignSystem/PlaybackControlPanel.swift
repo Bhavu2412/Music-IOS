@@ -33,11 +33,9 @@ struct PlaybackControlPanel: View {
     @ObservedObject var playback: PlaybackService
     var showQueue: (() -> Void)? = nil
 
-    @State private var modeAnimationTrigger = false
-
     var body: some View {
         VStack(spacing: 16) {
-            // MARK: - Shuffle, Skip 15, Repeat Bar
+            // MARK: - Shuffle and Repeat
             HStack {
                 // Shuffle Button
                 Button {
@@ -63,36 +61,6 @@ struct PlaybackControlPanel: View {
 
                 Spacer()
 
-                // Skip Back 15s
-                Button {
-                    playback.skip(by: -15)
-                    Haptics.impact(.light)
-                } label: {
-                    Image(systemName: "gobackward.15")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(DesignSystem.AppColors.secondaryText)
-                        .frame(width: 44, height: 40)
-                }
-                .buttonStyle(DesignSystem.PremiumPressStyle())
-                .accessibilityLabel("Rewind 15 seconds")
-
-                Spacer()
-
-                // Skip Forward 15s
-                Button {
-                    playback.skip(by: 15)
-                    Haptics.impact(.light)
-                } label: {
-                    Image(systemName: "goforward.15")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(DesignSystem.AppColors.secondaryText)
-                        .frame(width: 44, height: 40)
-                }
-                .buttonStyle(DesignSystem.PremiumPressStyle())
-                .accessibilityLabel("Fast forward 15 seconds")
-
-                Spacer()
-
                 // Repeat Button (off -> all -> one -> off)
                 Button {
                     cycleRepeatMode()
@@ -115,7 +83,7 @@ struct PlaybackControlPanel: View {
             .padding(.horizontal, 8)
 
             // MARK: - Main Transport Controls (Prev, Big Play/Pause, Next)
-            HStack(spacing: 24) {
+            HStack(spacing: 30) {
                 // Previous Track
                 Button {
                     playback.previous()

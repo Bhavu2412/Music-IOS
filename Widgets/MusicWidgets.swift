@@ -14,51 +14,98 @@ struct NowPlayingWidgetView: View {
     let entry: NowPlayingWidgetEntry
 
     var body: some View {
-        HStack(spacing: 12) {
-            if family != .systemSmall {
-                artwork.frame(width: 64, height: 64)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                if family == .systemSmall {
-                    artwork.frame(width: 44, height: 44)
+        switch family {
+        case .systemSmall:
+            ZStack(alignment: .bottomLeading) {
+                artwork
+                    .scaledToFill()
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                LinearGradient(colors: [.clear, .black.opacity(0.72)], startPoint: .top, endPoint: .bottom)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
                     Spacer(minLength: 0)
+                    Text(entry.state?.title ?? "Nothing Playing")
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    Text(entry.state?.artist ?? "Open Music")
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.78))
+                        .lineLimit(1)
                 }
-                Label(entry.state?.isPlaying == true ? "Playing" : "Music",
-                      systemImage: entry.state?.isPlaying == true ? "waveform" : "music.note")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .padding(12)
+            }
+            .overlay(alignment: .topTrailing) {
                 if let state = entry.state {
-                    Text(state.title)
+                    Button(intent: PlayPauseIntent()) {
+                        Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(.black.opacity(0.42), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(8)
+                }
+            }
+        case .systemLarge:
+            VStack(alignment: .leading, spacing: 12) {
+                artwork
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                trackInfo
+                controls
+                    .frame(maxWidth: .infinity)
+            }
+        case .accessoryRectangular:
+            HStack(spacing: 8) {
+                artwork
+                    .frame(width: 34, height: 34)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(entry.state?.title ?? "Music")
                         .font(.headline)
                         .lineLimit(1)
-                    Text(state.artist)
-                        .font(.caption)
+                    Text(entry.state?.artist ?? "")
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                } else {
-                    Text("Nothing playing")
-                        .font(.headline)
                 }
-                if family != .systemSmall, entry.state != nil {
-                    controls.padding(.top, 2)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .overlay(alignment: .topTrailing) {
-            if family == .systemSmall, let state = entry.state {
+                Spacer(minLength: 0)
                 Button(intent: PlayPauseIntent()) {
-                    Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .frame(width: 36, height: 36)
-                        .background(.tint.opacity(0.2), in: Circle())
+                    Image(systemName: entry.state?.isPlaying == true ? "pause.fill" : "play.fill")
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(state.isPlaying ? "Pause" : "Play")
+            }
+        default:
+            HStack(spacing: 14) {
+                artwork
+                    .frame(width: 118, height: 118)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                VStack(alignment: .leading, spacing: 8) {
+                    trackInfo
+                    controls
+                        .padding(.top, 4)
+                }
+                Spacer(minLength: 0)
             }
         }
         .tint(Color(red: 0.486, green: 0.514, blue: 1))
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(for: .widget) {
+            Color.black.opacity(0.01)
+        }
+    }
+
+    private var trackInfo: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(entry.state?.title ?? "Nothing Playing")
+                .font(.system(.headline, design: .rounded).weight(.semibold))
+                .lineLimit(1)
+            Text(entry.state?.artist ?? "Open Music")
+                .font(.system(.caption, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
     }
 
     private var controls: some View {
@@ -105,8 +152,8 @@ struct NowPlayingWidget: Widget {
             NowPlayingWidgetView(entry: entry)
         }
         .configurationDisplayName("Now Playing")
-        .description("Shows the current track.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .description("An artwork-forward view of the song currently playing.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
     }
 }
 
@@ -126,23 +173,71 @@ struct NowPlayingLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: "music.note").font(.title2)
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    VStack {
-                        Text(context.state.track).font(.headline).lineLimit(1)
-                        Text(context.state.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    if let data = context.state.artworkData, let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 48, height: 48)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    } else {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(.quaternary)
+                            .frame(width: 48, height: 48)
+                            .overlay(Image(systemName: "music.note").foregroundStyle(.secondary))
                     }
                 }
-                DynamicIslandExpandedRegion(.trailing) {
-                    Image(systemName: context.state.isPlaying ? "waveform" : "pause.fill")
+                DynamicIslandExpandedRegion(.center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(context.state.track)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text(context.state.artist)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    HStack(spacing: 28) {
+                        Button(intent: PreviousTrackIntent()) {
+                            Image(systemName: "backward.fill")
+                                .font(.title3)
+                        }
+                        Button(intent: PlayPauseIntent()) {
+                            Image(systemName: context.state.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.title2.weight(.bold))
+                        }
+                        Button(intent: NextTrackIntent()) {
+                            Image(systemName: "forward.fill")
+                                .font(.title3)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                    .padding(.top, 6)
                 }
             } compactLeading: {
-                Image(systemName: "music.note")
+                if let data = context.state.artworkData, let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 18, height: 18)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                } else {
+                    Image(systemName: "music.note")
+                }
             } compactTrailing: {
                 Image(systemName: context.state.isPlaying ? "waveform" : "pause.fill")
             } minimal: {
-                Image(systemName: "music.note")
+                if let data = context.state.artworkData, let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 16, height: 16)
+                        .clipShape(Circle())
+                } else {
+                    Image(systemName: "music.note")
+                }
             }
         }
     }

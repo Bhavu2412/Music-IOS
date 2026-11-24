@@ -51,6 +51,7 @@ struct NowPlayingAttributes: ActivityAttributes {
 struct DynamicIslandState: Codable & Hashable {
     var track: String
     var artist: String
+    var artworkData: Data?
     var isPlaying: Bool
 }
 #endif

@@ -108,6 +108,7 @@ enum DesignSystem {
         let icon: AppIcon
         let action: () -> Void
         let style: Style
+        @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
         enum Style: Equatable {
             case primary
@@ -130,8 +131,7 @@ enum DesignSystem {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.horizontal, 16)
                 .foregroundStyle(style == .primary ? DesignSystem.AppColors.accentContrastText : style == .destructive ? DesignSystem.AppColors.danger : DesignSystem.AppColors.primaryText)
-                .background(style == .primary ? DesignSystem.AppColors.accent : DesignSystem.AppColors.card)
-                .clipShape(Capsule())
+                .modifier(LiquidGlassCapsuleModifier())
                 .overlay(
                     Capsule().stroke(style == .destructive ? Color.clear : DesignSystem.AppColors.border, lineWidth: 1)
                 )
@@ -445,14 +445,7 @@ enum DesignSystem {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background {
-                if reduceTransparency {
-                    Capsule().fill(DesignSystem.AppColors.backgroundSecondary)
-                } else {
-                    Capsule().fill(.ultraThinMaterial)
-                }
-            }
-            .overlay(Capsule().stroke(DesignSystem.AppColors.border, lineWidth: 1))
+            .modifier(LiquidGlassCapsuleModifier())
             .padding(.horizontal, 10)
             .padding(.bottom, 8)
         }
@@ -489,14 +482,7 @@ enum DesignSystem {
                 }
             }
             .padding(4)
-            .background {
-                if reduceTransparency {
-                    Capsule().fill(DesignSystem.AppColors.backgroundSecondary)
-                } else {
-                    Capsule().fill(.ultraThinMaterial)
-                }
-            }
-            .overlay(Capsule().stroke(DesignSystem.AppColors.border, lineWidth: 1))
+            .modifier(LiquidGlassCapsuleModifier())
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
         }
