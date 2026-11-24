@@ -2,40 +2,36 @@ import ActivityKit
 import Foundation
 
 @available(iOS 16.1, *)
+@MainActor
 final class LiveActivityService {
     static let shared = LiveActivityService()
 
     private var activity: Activity<NowPlayingAttributes>?
 
-    func startActivity(track: Track) {
+    /// One activity per track: ends the previous one and requests a new one.
+    func startActivity(track: Track, isPlaying: Bool) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        let attributes = NowPlayingAttributes(name: track.title)
-        let state = NowPlayingAttributes.ContentState(track: track.title, artist: track.artist, isPlaying: true)
-        let content = ActivityContent(state: state, staleDate: nil)
+        stopActivity()
+        let state = NowPlayingAttributes.ContentState(track: track.title, artist: track.artist, isPlaying: isPlaying)
         do {
-            activity = try Activity.request(attributes: attributes, content: content)
+            activity = try Activity.request(
+                attributes: NowPlayingAttributes(name: track.title),
+                content: ActivityContent(state: state, staleDate: nil)
+            )
         } catch {
             print("Live Activity unavailable: \(error.localizedDescription)")
         }
     }
 
+    func update(track: Track, isPlaying: Bool) {
+        guard let activity else { return }
+        let state = NowPlayingAttributes.ContentState(track: track.title, artist: track.artist, isPlaying: isPlaying)
+        Task { await activity.update(ActivityContent(state: state, staleDate: nil)) }
+    }
+
     func stopActivity() {
         let currentActivity = activity
         activity = nil
-        Task {
-            await currentActivity?.end(nil, dismissalPolicy: .immediate)
-        }
+        Task { await currentActivity?.end(nil, dismissalPolicy: .immediate) }
     }
-}
-
-struct NowPlayingAttributes: ActivityAttributes {
-    public typealias ContentState = DynamicIslandState
-
-    var name: String
-}
-
-struct DynamicIslandState: Codable & Hashable {
-    var track: String
-    var artist: String
-    var isPlaying: Bool
 }

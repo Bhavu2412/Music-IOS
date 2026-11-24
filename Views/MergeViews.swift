@@ -34,21 +34,61 @@ struct MergeDuplicatesView: View {
 
 struct PlaylistMergeView: View {
     let playlists: [Playlist]
-    let onMerge: (String) -> Void
+    let onMerge: (String, Set<UUID>) -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @State private var name = "Merged Playlist"
+    @State private var selected: Set<UUID>
+
+    init(playlists: [Playlist], initiallySelected: Set<UUID>, onMerge: @escaping (String, Set<UUID>) -> Void) {
+        self.playlists = playlists
+        self.onMerge = onMerge
+        _selected = State(initialValue: initiallySelected)
+    }
+
+    private var canMerge: Bool {
+        selected.count >= 2 && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("New playlist name", text: $name)
+                Section("New playlist name") {
+                    TextField("Name", text: $name)
+                }
+                Section {
+                    ForEach(playlists) { playlist in
+                        Button {
+                            if selected.contains(playlist.id) { selected.remove(playlist.id) } else { selected.insert(playlist.id) }
+                            Haptics.selection()
+                        } label: {
+                            HStack {
+                                Image(systemName: selected.contains(playlist.id) ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(selected.contains(playlist.id) ? DesignSystem.AppColors.accent : .secondary)
+                                Text(playlist.name).foregroundStyle(.primary)
+                                Spacer()
+                                Text("\(playlist.trackIDs.count) songs").foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityAddTraits(selected.contains(playlist.id) ? .isSelected : [])
+                    }
+                } header: {
+                    Text("Playlists to combine")
+                } footer: {
+                    Text("Songs are combined in order and duplicates are skipped. The original playlists are kept.")
+                }
             }
             .navigationTitle("Merge playlists")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Create") {
-                        onMerge(name)
+                        onMerge(name.trimmingCharacters(in: .whitespacesAndNewlines), selected)
                     }
+                    .disabled(!canMerge)
                 }
             }
         }

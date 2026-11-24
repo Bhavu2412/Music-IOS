@@ -19,6 +19,7 @@ final class Track {
     var isDownloaded: Bool
     var isAvailableOffline: Bool
     var remoteURLString: String?
+    var lastPlayedAt: Date?
 
     init(
         id: UUID = UUID(),

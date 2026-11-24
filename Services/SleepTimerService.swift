@@ -3,6 +3,8 @@ import Foundation
 @MainActor
 @Observable
 final class SleepTimerService {
+    static let shared = SleepTimerService()
+
     var isEnabled = false
     var remainingSeconds: TimeInterval = 0
     private var timer: Timer?

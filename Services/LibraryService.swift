@@ -28,7 +28,7 @@ protocol LibraryServicing {
 
 @MainActor
 final class LibraryService: LibraryServicing {
-    static let supportedExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "flac", "alac"]
+    nonisolated static let supportedExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "flac", "alac", "aiff", "aif"]
 
     func importItems(_ urls: [URL], into context: ModelContext) async throws -> [Track] {
         let scopedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
@@ -40,12 +40,19 @@ final class LibraryService: LibraryServicing {
         }
 
         var imported: [Track] = []
+        var firstError: Error?
         for file in files {
-            let track = try await importFile(file, into: context)
-            imported.append(track)
-            try updateAlbum(for: track, in: context)
+            // One unreadable file shouldn't abort the whole batch.
+            do {
+                let track = try await importFile(file, into: context)
+                imported.append(track)
+                try updateAlbum(for: track, in: context)
+            } catch {
+                firstError = firstError ?? error
+            }
         }
         try context.save()
+        if imported.isEmpty, let firstError { throw firstError }
         return imported
     }
 
@@ -133,6 +140,7 @@ final class LibraryService: LibraryServicing {
         let album = await stringValue(in: metadata, key: .commonKeyAlbumName) ?? "Unknown Album"
         let artwork = await artworkValue(in: metadata)
         let seconds = CMTimeGetSeconds(duration)
+        let bitrate = try? await asset.loadTracks(withMediaType: .audio).first?.load(.estimatedDataRate)
 
         let track = Track(
             title: title,
@@ -141,7 +149,8 @@ final class LibraryService: LibraryServicing {
             duration: seconds.isFinite ? max(seconds, 0) : 0,
             artworkData: artwork,
             bookmarkData: bookmark,
-            originalFilename: url.lastPathComponent
+            originalFilename: url.lastPathComponent,
+            bitrate: bitrate.map(Double.init)
         )
         context.insert(track)
         return track

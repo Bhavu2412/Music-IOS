@@ -547,6 +547,12 @@ enum DesignSystem {
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 0)
+                        if track.duration > 0 {
+                            Text(Self.formatDuration(track.duration))
+                                .font(.system(.caption, design: .rounded).monospacedDigit())
+                                .foregroundStyle(DesignSystem.AppColors.secondaryText)
+                                .padding(.trailing, 2)
+                        }
                         if isOffline && !track.isAvailableOffline {
                             AppIconView(icon: .offline, size: .row)
                                 .frame(width: 32, height: 44)
@@ -572,6 +578,11 @@ enum DesignSystem {
             .opacity(isOffline && !track.isAvailableOffline ? 0.4 : 1)
             .animation(DesignSystem.Motion.spring, value: isCurrent && isPlaying)
             .contentShape(Rectangle())
+        }
+
+        private static func formatDuration(_ seconds: Double) -> String {
+            let total = max(Int(seconds), 0)
+            return String(format: "%d:%02d", total / 60, total % 60)
         }
     }
 

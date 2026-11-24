@@ -2,34 +2,26 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("music.feedURLs") private var feedURLsStorage: [String] = []
+    @AppStorage(Haptics.enabledKey) private var hapticsEnabled = true
+    @ObservedObject private var playback = PlaybackService.shared
+    @State private var sleepTimer = SleepTimerService.shared
     @State private var draftURL = ""
-    @State private var playbackRate: Float = 1.0
     @State private var sleepMinutes = 30
-    @State private var selectedPreset = EqualizerPreset.flat
-    @State private var crossfadeSeconds = 1.0
-    @State private var isGaplessEnabled = true
-    @State private var isAutoMergeEnabled = false
-    @State private var isDynamicTypeEnabled = true
+    @State private var documentsBytes: Int64 = 0
+    @State private var cacheBytes: Int64 = 0
     @State private var errorMessage: String?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.AppSpacing.s28) {
                 settingsSection("PLAYBACK") {
-                    settingsRow(.equalizer, title: "EQ preset") {
-                        Picker("EQ preset", selection: $selectedPreset) {
-                            ForEach(EqualizerPreset.allCases, id: \.self) { preset in
-                                Text(preset.rawValue).tag(preset)
-                            }
-                        }
-                        .labelsHidden()
-                        .tint(DesignSystem.AppColors.accent)
-                    }
-                    sectionDivider
                     settingsRow(.playbackSpeed, title: "Playback speed") {
-                        Picker("Playback speed", selection: $playbackRate) {
+                        Picker("Playback speed", selection: Binding(
+                            get: { playback.playbackRate },
+                            set: { playback.setPlaybackRate($0) }
+                        )) {
                             ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0], id: \.self) { rate in
-                                Text(rate, format: .number.precision(.fractionLength(2)))
+                                Text("\(rate, specifier: "%g")×")
                                     .tag(Float(rate))
                             }
                         }
@@ -37,22 +29,52 @@ struct SettingsView: View {
                         .tint(DesignSystem.AppColors.accent)
                     }
                     sectionDivider
+                    settingsRow(.equalizer, title: "Equalizer") {
+                        Picker("Equalizer", selection: Binding(
+                            get: { playback.eqPreset },
+                            set: { playback.setEQPreset($0); Haptics.selection() }
+                        )) {
+                            ForEach(EqualizerPreset.allCases) { preset in
+                                Text(preset.rawValue).tag(preset)
+                            }
+                        }
+                        .labelsHidden()
+                        .tint(DesignSystem.AppColors.accent)
+                    }
+                    EQCurve(gains: playback.eqPreset.bandGains)
+                        .frame(height: 44)
+                        .padding(.leading, 42)
+                        .padding(.bottom, 8)
+                        .animation(DesignSystem.Motion.spring, value: playback.eqPreset)
+                    sectionDivider
                     settingsRow(.crossfade, title: "Crossfade") {
                         Stepper(
-                            "\(crossfadeSeconds, specifier: "%.1f")s",
-                            value: $crossfadeSeconds,
-                            in: 0...5,
-                            step: 0.5
+                            playback.crossfadeSeconds == 0 ? "Off" : "\(Int(playback.crossfadeSeconds)) s",
+                            value: Binding(get: { playback.crossfadeSeconds }, set: { playback.setCrossfade($0) }),
+                            in: 0...12,
+                            step: 1
                         )
-                        .labelsHidden()
+                        .font(DesignSystem.subhead.monospacedDigit())
+                        .fixedSize()
                     }
                     sectionDivider
-                    settingsToggle(.gapless, title: "Gapless playback", isOn: $isGaplessEnabled)
+                    settingsToggle(.gapless, title: "Gapless playback", isOn: Binding(
+                        get: { playback.isGaplessEnabled },
+                        set: { playback.setGapless($0) }
+                    ))
+                    .disabled(playback.crossfadeSeconds > 0)
+                    .opacity(playback.crossfadeSeconds > 0 ? 0.5 : 1)
+                    if playback.crossfadeSeconds > 0 {
+                        Text("Crossfade blends songs together, so gapless playback is off while it’s on.")
+                            .font(DesignSystem.caption)
+                            .foregroundStyle(DesignSystem.AppColors.secondaryText)
+                            .padding(.leading, 42)
+                            .padding(.bottom, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
 
                 settingsSection("LIBRARY AND OFFLINE") {
-                    settingsToggle(.merge, title: "Auto-merge duplicates", isOn: $isAutoMergeEnabled)
-                    sectionDivider
                     settingsRow(.offline, title: "Offline mode") {
                         Text("Automatic")
                             .font(DesignSystem.subhead)
@@ -105,36 +127,47 @@ struct SettingsView: View {
 
                 settingsSection("SLEEP TIMER AND STORAGE") {
                     settingsRow(.sleepTimer, title: "Sleep timer") {
-                        Stepper("\(sleepMinutes) min", value: $sleepMinutes, in: 5...120, step: 5)
-                            .labelsHidden()
+                        if sleepTimer.isEnabled {
+                            Text(Duration.seconds(sleepTimer.remainingSeconds), format: .time(pattern: .minuteSecond))
+                                .font(DesignSystem.subhead.monospacedDigit())
+                                .foregroundStyle(DesignSystem.AppColors.accent)
+                                .contentTransition(.numericText())
+                        } else {
+                            Stepper("\(sleepMinutes) min", value: $sleepMinutes, in: 5...120, step: 5)
+                                .font(DesignSystem.subhead.monospacedDigit())
+                                .fixedSize()
+                        }
                     }
-                    HStack(spacing: 12) {
-                        DesignSystem.GlassButton(title: "Start", icon: .play, action: {
-                            SleepTimerService().start(minutes: sleepMinutes)
-                        }, style: .primary)
-                        DesignSystem.GlassButton(title: "Stop", icon: .pause, action: {
-                            SleepTimerService().stop()
-                        }, style: .secondary)
+                    Group {
+                        if sleepTimer.isEnabled {
+                            DesignSystem.GlassButton(title: "Cancel timer", icon: .pause, action: {
+                                sleepTimer.stop()
+                            }, style: .secondary)
+                        } else {
+                            DesignSystem.GlassButton(title: "Start \(sleepMinutes)-minute timer", icon: .play, action: {
+                                sleepTimer.start(minutes: sleepMinutes)
+                                Haptics.notify()
+                            }, style: .primary)
+                        }
                     }
                     .padding(.leading, 42)
                     .padding(.vertical, 8)
                     sectionDivider
                     settingsRow(.storage, title: "Documents") {
-                        let storage = StorageManagerService()
-                        Text(ByteCountFormatter.string(fromByteCount: storage.documentsUsage(), countStyle: .file))
+                        Text(ByteCountFormatter.string(fromByteCount: documentsBytes, countStyle: .file))
                             .font(DesignSystem.subhead)
                             .foregroundStyle(DesignSystem.AppColors.secondaryText)
                     }
                     sectionDivider
                     settingsRow(.storage, title: "Cache") {
-                        let storage = StorageManagerService()
-                        Text(ByteCountFormatter.string(fromByteCount: storage.cachedUsage(), countStyle: .file))
+                        Text(ByteCountFormatter.string(fromByteCount: cacheBytes, countStyle: .file))
                             .font(DesignSystem.subhead)
                             .foregroundStyle(DesignSystem.AppColors.secondaryText)
                     }
                     Button {
                         do {
                             try StorageManagerService().clearCache()
+                            refreshStorage()
                         } catch {
                             errorMessage = error.localizedDescription
                         }
@@ -154,9 +187,7 @@ struct SettingsView: View {
                 }
 
                 settingsSection("ACCESSIBILITY") {
-                    settingsToggle(.textSize, title: "Dynamic Type", isOn: $isDynamicTypeEnabled)
-                    sectionDivider
-                    settingsToggle(.haptics, title: "Use haptics", isOn: .constant(true))
+                    settingsToggle(.haptics, title: "Use haptics", isOn: $hapticsEnabled)
                 }
             }
             .padding(.horizontal, DesignSystem.AppSpacing.screen)
@@ -165,6 +196,7 @@ struct SettingsView: View {
         }
         .scrollIndicators(.hidden)
         .background(DesignSystem.AppColors.background)
+        .task { refreshStorage() }
         .alert("Settings error", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -239,6 +271,12 @@ struct SettingsView: View {
             .accessibilityHidden(true)
     }
 
+    private func refreshStorage() {
+        let storage = StorageManagerService()
+        documentsBytes = storage.documentsUsage()
+        cacheBytes = storage.cachedUsage()
+    }
+
     private func addFeed() {
         let trimmed = draftURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmed), ["https", "http"].contains(url.scheme?.lowercased() ?? ""), url.host != nil else {
@@ -249,5 +287,26 @@ struct SettingsView: View {
             feedURLsStorage.append(trimmed)
         }
         draftURL = ""
+    }
+}
+
+/// Small visual of the selected EQ curve: one bar per band, centered on 0 dB.
+private struct EQCurve: View {
+    let gains: [Float]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 4) {
+            ForEach(Array(gains.enumerated()), id: \.offset) { _, gain in
+                GeometryReader { geometry in
+                    let half = geometry.size.height / 2
+                    let height = max(CGFloat(abs(gain)) / 6 * half, 2)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(DesignSystem.AppColors.accent.opacity(gain == 0 ? 0.35 : 0.9))
+                        .frame(height: height)
+                        .offset(y: gain >= 0 ? half - height : half)
+                }
+            }
+        }
+        .accessibilityHidden(true)
     }
 }

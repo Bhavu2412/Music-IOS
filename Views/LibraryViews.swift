@@ -55,7 +55,6 @@ struct LibraryTabsView: View {
     @State private var showingPlaylistMerge = false
     @State private var showingAudioMerge = false
     @State private var showingNowPlaying = false
-    @State private var showingQueue = false
     @State private var restoredPlayback = false
     @State private var duplicatePairs: [(Track, Track)] = []
     @State private var selectedPlaylistIDs: [UUID] = []
@@ -95,6 +94,8 @@ struct LibraryTabsView: View {
                             }
                         }
                 }
+                // Fresh stack per tab, so a pushed album page doesn't linger on other tabs.
+                .id(selectedTab)
 
                 if playback.currentTrack != nil {
                     MiniPlayer(playback: playback) {
@@ -133,7 +134,9 @@ struct LibraryTabsView: View {
         .sheet(isPresented: $showingMergeDuplicates) {
             MergeDuplicatesView(duplicates: duplicatePairs, onMerge: {
                 do {
-                    try MergeService().mergeDuplicateTracks(duplicatePairs, in: modelContext)
+                    let deleted = try MergeService().mergeDuplicateTracks(duplicatePairs, in: modelContext)
+                    playback.remove(trackIDs: deleted)
+                    viewModel.errorMessage = "Merged \(deleted.count) duplicate \(deleted.count == 1 ? "song" : "songs")."
                 } catch {
                     viewModel.errorMessage = error.localizedDescription
                 }
@@ -143,9 +146,9 @@ struct LibraryTabsView: View {
             })
         }
         .sheet(isPresented: $showingPlaylistMerge) {
-            PlaylistMergeView(playlists: playlists, onMerge: { name in
+            PlaylistMergeView(playlists: playlists, initiallySelected: Set(selectedPlaylistIDs), onMerge: { name, selected in
                 do {
-                    _ = try MergeService().mergePlaylists(playlists.filter { selectedPlaylistIDs.contains($0.id) }, into: name, in: modelContext)
+                    _ = try MergeService().mergePlaylists(playlists.filter { selected.contains($0.id) }, into: name, in: modelContext)
                 } catch {
                     viewModel.errorMessage = error.localizedDescription
                 }
@@ -182,7 +185,6 @@ struct LibraryTabsView: View {
                 isOnline: connectivity.isOnline,
                 playlists: playlists,
                 context: modelContext,
-                showQueue: { showingQueue = true },
                 openSettings: {
                     showingNowPlaying = false
                     selectedTab = .settings
@@ -194,10 +196,7 @@ struct LibraryTabsView: View {
                 }
             )
         }
-        .sheet(isPresented: $showingQueue) {
-            QueueView(playback: playback)
-        }
-        .alert("Music Error", isPresented: Binding(
+        .alert("Music", isPresented: Binding(
             get: { viewModel.errorMessage != nil || playback.errorMessage != nil },
             set: {
                 if !$0 {
@@ -266,7 +265,11 @@ struct LibraryTabsView: View {
             .disabled(!connectivity.isOnline)
             Button {
                 duplicatePairs = MergeService().detectDuplicateTracks(in: tracks)
-                showingMergeDuplicates = !duplicatePairs.isEmpty
+                if duplicatePairs.isEmpty {
+                    viewModel.errorMessage = "No duplicate songs found."
+                } else {
+                    showingMergeDuplicates = true
+                }
             } label: {
                 Label("Check duplicates", systemImage: AppIcon.paste.symbolName())
             }
@@ -276,6 +279,7 @@ struct LibraryTabsView: View {
             } label: {
                 Label("Merge playlists", systemImage: AppIcon.merge.symbolName())
             }
+            .disabled(playlists.count < 2)
             Button {
                 showingAudioMerge = true
             } label: {
@@ -418,6 +422,9 @@ private struct SearchLibraryView: View {
     @State private var isSearchingOnline = false
     @State private var onlineError: String?
     @State private var onlineSearchTask: Task<Void, Never>?
+    @State private var downloadingIDs = Set<UUID>()
+    @State private var downloadedIDs = Set<UUID>()
+    @Environment(\.modelContext) private var modelContext
     @AppStorage("music.feedURLs") private var feedURLs: [String] = []
     @AppStorage("music.recentSearches") private var recentSearches: [String] = []
     @FocusState private var searchFocused: Bool
@@ -531,6 +538,7 @@ private struct SearchLibraryView: View {
                                 if !onlineResults.isEmpty {
                                     VStack(spacing: 0) {
                                         ForEach(onlineResults) { result in
+                                            Button { download(result) } label: {
                                             HStack(spacing: 12) {
                                                 DesignSystem.ArtworkView(
                                                     data: nil,
@@ -547,10 +555,19 @@ private struct SearchLibraryView: View {
                                                         .lineLimit(1)
                                                 }
                                                 Spacer(minLength: 0)
-                                                AppIconView(icon: .download, size: .row)
+                                                if downloadingIDs.contains(result.id) {
+                                                    ProgressView().tint(DesignSystem.AppColors.accent)
+                                                } else {
+                                                    AppIconView(icon: downloadedIDs.contains(result.id) ? .success : .download, size: .row)
+                                                }
                                             }
                                             .frame(minHeight: 68)
                                             .padding(.horizontal, 12)
+                                            .contentShape(Rectangle())
+                                            }
+                                            .buttonStyle(DesignSystem.PremiumPressStyle())
+                                            .disabled(result.downloadURL == nil || downloadingIDs.contains(result.id) || downloadedIDs.contains(result.id))
+                                            .accessibilityLabel("Download \(result.title) by \(result.artist)")
                                         }
                                     }
                                     .glassCard(cornerRadius: 20)
@@ -685,6 +702,22 @@ private struct SearchLibraryView: View {
         .padding(8)
         .glassCard(cornerRadius: 20)
         .padding(.horizontal, 14)
+    }
+
+    private func download(_ result: RemoteSearchResult) {
+        guard let url = result.downloadURL else { return }
+        downloadingIDs.insert(result.id)
+        Task {
+            defer { downloadingIDs.remove(result.id) }
+            do {
+                _ = try await DownloadService.shared.download(from: url)
+                downloadedIDs.insert(result.id)
+                Haptics.notify()
+            } catch {
+                onlineError = error.localizedDescription
+                Haptics.notify(.error)
+            }
+        }
     }
 
     private func scheduleOnlineSearch() {
@@ -895,10 +928,14 @@ private struct TrackList: View {
     let onBrowseLibrary: () -> Void
     let onOpenSettings: () -> Void
     @State private var searchText = ""
-    @State private var trackToDelete: Track?
+    @State private var pendingDeletion: [Track] = []
     @State private var showingDeleteConfirmation = false
     @State private var playlistTrack: Track?
     @State private var showingCreatePlaylist = false
+    @State private var trackToEdit: Track?
+    @State private var isSelecting = false
+    @State private var selectedIDs = Set<UUID>()
+    @AppStorage("music.songSort") private var sort: SongSort = .title
 
     private var filteredTracks: [Track] {
         guard !searchText.isEmpty else { return tracks }
@@ -908,18 +945,28 @@ private struct TrackList: View {
         }
     }
 
+    /// A–Z sections when sorted by title; one unlabeled section for other sorts.
     private var trackGroups: [TrackGroup] {
+        guard sort == .title else {
+            return [TrackGroup(letter: "", tracks: sort.sorted(filteredTracks))]
+        }
         let grouped = Dictionary(grouping: filteredTracks) { track in
-            String(track.title.uppercased().first ?? "#")
+            let first = track.title.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).uppercased().first
+            return first.map { $0.isLetter ? String($0) : "#" } ?? "#"
         }
-        return grouped.keys.sorted().map { letter in
-            TrackGroup(
-                letter: letter,
-                tracks: (grouped[letter] ?? []).sorted {
-                    $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
-                }
-            )
+        // Letters first, "#" last.
+        let letters = grouped.keys.sorted { a, b in
+            if a == "#" || b == "#" { return b == "#" && a != "#" }
+            return a < b
         }
+        return letters.map { letter in
+            TrackGroup(letter: letter, tracks: SongSort.title.sorted(grouped[letter] ?? []))
+        }
+    }
+
+    /// Songs in display order, used as the play queue.
+    private var displayedTracks: [Track] {
+        trackGroups.flatMap(\.tracks)
     }
 
     private var recentlyAddedAlbums: [Track] {
@@ -931,6 +978,7 @@ private struct TrackList: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
         List {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
@@ -956,6 +1004,7 @@ private struct TrackList: View {
                                 if let first = filteredTracks.first {
                                     playback.play(first, from: filteredTracks)
                                     onTrackSelected()
+                                    Haptics.impact(.medium)
                                 }
                             } label: {
                                 Label("Play", systemImage: AppIcon.play.symbolName())
@@ -964,11 +1013,10 @@ private struct TrackList: View {
                             .buttonStyle(DesignSystem.PremiumPressStyle())
                             .disabled(filteredTracks.isEmpty)
                             Button {
-                                playback.toggleShuffle()
-                                if let first = filteredTracks.randomElement() {
-                                    playback.play(first, from: filteredTracks)
-                                    onTrackSelected()
-                                }
+                                guard !filteredTracks.isEmpty else { return }
+                                playback.playShuffled(filteredTracks)
+                                onTrackSelected()
+                                Haptics.impact(.medium)
                             } label: {
                                 AppIconView(icon: .shuffle, size: .toolbar)
                                     .frame(width: 44, height: 44)
@@ -977,6 +1025,58 @@ private struct TrackList: View {
                             .disabled(filteredTracks.isEmpty)
                         }
                         .padding(.top, 8)
+                    } else if !filteredTracks.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("\(filteredTracks.count) \(filteredTracks.count == 1 ? "track" : "tracks")")
+                                .font(.system(.caption, design: .rounded).weight(.bold))
+                                .foregroundStyle(DesignSystem.AppColors.secondaryText)
+                                .textCase(.uppercase)
+                                .tracking(1.2)
+                                .padding(.horizontal, 2)
+
+                            HStack(spacing: 12) {
+                                Button {
+                                    if let first = displayedTracks.first {
+                                        playback.play(first, from: displayedTracks)
+                                        onTrackSelected()
+                                        Haptics.impact(.medium)
+                                    }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "play.fill")
+                                            .font(.system(size: 14, weight: .bold))
+                                        Text("Play")
+                                            .font(.system(.subheadline, design: .rounded).weight(.bold))
+                                    }
+                                    .foregroundStyle(DesignSystem.AppColors.accentContrastText)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
+                                    .background(DesignSystem.AppColors.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    .shadow(color: DesignSystem.AppColors.accent.opacity(0.3), radius: 8, y: 3)
+                                }
+                                .buttonStyle(DesignSystem.PremiumPressStyle())
+
+                                Button {
+                                    guard !filteredTracks.isEmpty else { return }
+                                    playback.playShuffled(filteredTracks)
+                                    onTrackSelected()
+                                    Haptics.impact(.medium)
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "shuffle")
+                                            .font(.system(size: 15, weight: .bold))
+                                        Text("Shuffle")
+                                            .font(.system(.subheadline, design: .rounded).weight(.bold))
+                                    }
+                                    .foregroundStyle(DesignSystem.AppColors.primaryText)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
+                                    .glassCard(cornerRadius: 14)
+                                }
+                                .buttonStyle(DesignSystem.PremiumPressStyle())
+                            }
+                        }
+                        .padding(.top, 4)
                     }
                 }
                 .padding(.vertical, 6)
@@ -1063,102 +1163,48 @@ private struct TrackList: View {
                 .listRowSeparator(.hidden)
             }
 
+            if !filteredTracks.isEmpty {
+                libraryToolsRow
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+
             ForEach(trackGroups) { group in
                 Section {
                     ForEach(group.tracks) { track in
-                    DesignSystem.TrackRow(
-                        track: track,
-                        isCurrent: playback.currentTrack?.id == track.id,
-                        isPlaying: playback.isPlaying,
-                        isOffline: !isOnline,
-                        trailingMenu: AnyView(
-                            SongOptionsMenu(
-                                track: track,
-                                playlists: playlists,
-                                playback: playback,
-                                context: context,
-                                reportError: reportError,
-                                deleteTrack: {
-                                    trackToDelete = track
-                                    showingDeleteConfirmation = true
-                                },
-                                createPlaylist: {
-                                    playlistTrack = track
-                                    showingCreatePlaylist = true
-                                }
-                            )
-                        )
-                    ) {
-                        playback.play(track, from: filteredTracks)
-                        onTrackSelected()
-                    }
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            track.isFavorite.toggle()
-                            Haptics.impact(.light)
-                        } label: {
-                            Label(
-                                track.isFavorite ? "Unfavorite" : "Favorite",
-                                systemImage: AppIcon.favorite.symbolName(active: track.isFavorite)
-                            )
-                        }
-                        .tint(DesignSystem.AppColors.accent)
-
-                        Button {
-                            playback.addToQueue(track)
-                        } label: {
-                            Label("Add to Queue", systemImage: AppIcon.addQueue.symbolName())
-                        }
-                        .tint(DesignSystem.AppColors.accent)
-                    }
-                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                        Button {
-                            playback.playNext(track)
-                        } label: {
-                            Label("Play Next", systemImage: AppIcon.playNext.symbolName())
-                        }
-                        .tint(DesignSystem.AppColors.accent)
-                    }
-                    .contextMenu {
-                        Button("Play Next", systemImage: AppIcon.playNext.symbolName()) {
-                            playback.playNext(track)
-                        }
-                        Button("Add to Queue", systemImage: AppIcon.addQueue.symbolName()) {
-                            playback.addToQueue(track)
-                        }
-                        Button(track.isFavorite ? "Remove Favorite" : "Add to Favorites", systemImage: AppIcon.favorite.symbolName(active: track.isFavorite)) {
-                            track.isFavorite.toggle()
-                        }
-                        if !playlists.isEmpty {
-                            Menu("Add to Playlist", systemImage: AppIcon.addToPlaylist.symbolName()) {
-                                ForEach(playlists) { playlist in
-                                    Button(playlist.name) {
-                                        if !playlist.trackIDs.contains(track.id) {
-                                            playlist.trackIDs.append(track.id)
-                                            do { try context.save() }
-                                            catch { reportError(error.localizedDescription) }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                        trackRow(track)
                     }
                 } header: {
-                    Text(group.letter)
-                        .font(.system(.headline, design: .rounded).weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .id(group.letter)
+                    if !group.letter.isEmpty {
+                        Text(group.letter)
+                            .font(.system(.headline, design: .rounded).weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .id(group.letter)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(DesignSystem.AppColors.background)
+        .overlay(alignment: .trailing) {
+            if sort == .title, !isSelecting, trackGroups.count > 4 {
+                AlphabetIndex(letters: trackGroups.map(\.letter)) { letter in
+                    proxy.scrollTo(letter, anchor: .top)
+                }
+            }
+        }
+        }
         .safeAreaPadding(.bottom, 16)
+        .safeAreaInset(edge: .bottom) {
+            if isSelecting {
+                selectionActionBar
+            }
+        }
+        .onChange(of: tracks.count) {
+            selectedIDs.formIntersection(Set(tracks.map(\.id)))
+        }
         .sheet(isPresented: $showingCreatePlaylist, onDismiss: {
             playlistTrack = nil
         }) {
@@ -1166,17 +1212,219 @@ private struct TrackList: View {
                 createPlaylist(named: name)
             }
         }
+        .sheet(item: $trackToEdit) { track in
+            EditTrackView(track: track)
+        }
         .confirmationDialog(
-            "Remove from Library?",
+            pendingDeletion.count == 1 ? "Remove from Library?" : "Remove \(pendingDeletion.count) songs from Library?",
             isPresented: $showingDeleteConfirmation,
             titleVisibility: .visible
         ) {
             Button("Remove from Library", role: .destructive) {
-                removeTrackFromLibrary()
+                removeFromLibrary(pendingDeletion)
             }
-            Button("Cancel", role: .cancel) { trackToDelete = nil }
+            Button("Cancel", role: .cancel) { pendingDeletion = [] }
         } message: {
-            Text("The song will be removed from Music and playlists. Its original audio file in Files will not be deleted.")
+            Text("Songs are removed from Music and your playlists. The original audio files in Files are not deleted.")
+        }
+    }
+
+    // MARK: - Rows
+
+    private func trackRow(_ track: Track) -> some View {
+        let isSelected = selectedIDs.contains(track.id)
+        let trailing: AnyView = isSelecting
+            ? AnyView(
+                AppIconView(icon: isSelected ? .success : .unselected, size: .row, isActive: isSelected,
+                            color: isSelected ? DesignSystem.AppColors.accent : .secondary)
+                    .frame(width: 44, height: 44)
+            )
+            : AnyView(
+                SongOptionsMenu(
+                    track: track,
+                    playlists: playlists,
+                    playback: playback,
+                    context: context,
+                    reportError: reportError,
+                    deleteTrack: { confirmDeletion([track]) },
+                    createPlaylist: {
+                        playlistTrack = track
+                        showingCreatePlaylist = true
+                    },
+                    editTrack: { trackToEdit = track }
+                )
+            )
+        return DesignSystem.TrackRow(
+            track: track,
+            isCurrent: playback.currentTrack?.id == track.id,
+            isPlaying: playback.isPlaying,
+            isOffline: !isOnline,
+            trailingMenu: trailing,
+            actionAccessibilityLabel: isSelecting ? (isSelected ? "Deselect \(track.title)" : "Select \(track.title)") : nil
+        ) {
+            if isSelecting {
+                if isSelected { selectedIDs.remove(track.id) } else { selectedIDs.insert(track.id) }
+                Haptics.selection()
+            } else {
+                playback.play(track, from: displayedTracks)
+                onTrackSelected()
+            }
+        }
+        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+        .listRowSeparator(.hidden)
+        .listRowBackground(isSelected ? DesignSystem.AppColors.accent.opacity(0.10) : Color.clear)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !isSelecting {
+                Button {
+                    track.isFavorite.toggle()
+                    Haptics.impact(.light)
+                } label: {
+                    Label(track.isFavorite ? "Unfavorite" : "Favorite",
+                          systemImage: AppIcon.favorite.symbolName(active: track.isFavorite))
+                }
+                .tint(DesignSystem.AppColors.accent)
+                Button {
+                    playback.addToQueue(track)
+                } label: {
+                    Label("Add to Queue", systemImage: AppIcon.addQueue.symbolName())
+                }
+                .tint(DesignSystem.AppColors.accent)
+            }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            if !isSelecting {
+                Button {
+                    playback.playNext(track)
+                } label: {
+                    Label("Play Next", systemImage: AppIcon.playNext.symbolName())
+                }
+                .tint(DesignSystem.AppColors.accent)
+            }
+        }
+    }
+
+    private var libraryToolsRow: some View {
+        HStack(spacing: 12) {
+            Menu {
+                Picker("Sort by", selection: $sort) {
+                    ForEach(SongSort.allCases) { option in
+                        Label(option.rawValue, systemImage: option.symbol).tag(option)
+                    }
+                }
+            } label: {
+                Label("Sort: \(sort.rawValue)", systemImage: "arrow.up.arrow.down")
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(DesignSystem.AppColors.secondaryText)
+                    .frame(minHeight: 44)
+            }
+            .accessibilityLabel("Sort songs, currently \(sort.rawValue)")
+            Spacer()
+            if isSelecting {
+                Button(selectedIDs.count == displayedTracks.count ? "Deselect All" : "Select All") {
+                    selectedIDs = selectedIDs.count == displayedTracks.count ? [] : Set(displayedTracks.map(\.id))
+                }
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .frame(minHeight: 44)
+            }
+            Button(isSelecting ? "Done" : "Select") {
+                withAnimation(DesignSystem.Motion.spring) {
+                    isSelecting.toggle()
+                    selectedIDs = []
+                }
+            }
+            .font(.system(.subheadline, design: .rounded).weight(.bold))
+            .foregroundStyle(DesignSystem.AppColors.accent)
+            .frame(minHeight: 44)
+        }
+    }
+
+    private var selectedTracks: [Track] {
+        displayedTracks.filter { selectedIDs.contains($0.id) }
+    }
+
+    private var selectionActionBar: some View {
+        let none = selectedIDs.isEmpty
+        return HStack(spacing: 0) {
+            selectionButton("Play", icon: "play.fill") {
+                guard let first = selectedTracks.first else { return }
+                playback.play(first, from: selectedTracks)
+                onTrackSelected()
+                endSelection()
+            }
+            selectionButton("Queue", icon: AppIcon.addQueue.symbolName()) {
+                selectedTracks.forEach(playback.addToQueue)
+                Haptics.notify()
+                endSelection()
+            }
+            selectionButton("Favorite", icon: "heart") {
+                let makeFavorite = selectedTracks.contains { !$0.isFavorite }
+                selectedTracks.forEach { $0.isFavorite = makeFavorite }
+                Haptics.notify()
+                endSelection()
+            }
+            Menu {
+                ForEach(playlists) { playlist in
+                    Button(playlist.name) { add(selectedTracks, to: playlist) }
+                }
+                Button("New Playlist…", systemImage: AppIcon.createPlaylist.symbolName()) {
+                    let ids = selectedTracks.map(\.id)
+                    context.insert(Playlist(name: "New Playlist", trackIDs: ids))
+                    try? context.save()
+                    Haptics.notify()
+                    endSelection()
+                }
+            } label: {
+                selectionLabel("Playlist", icon: AppIcon.addToPlaylist.symbolName())
+            }
+            selectionButton("Delete", icon: "trash", role: .destructive) {
+                confirmDeletion(selectedTracks)
+            }
+        }
+        .disabled(none)
+        .opacity(none ? 0.45 : 1)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .glassCard(cornerRadius: 22)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 6)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private func selectionButton(_ title: String, icon: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
+        Button(role: role, action: action) {
+            selectionLabel(title, icon: icon, isDestructive: role == .destructive)
+        }
+        .buttonStyle(DesignSystem.PremiumPressStyle())
+    }
+
+    private func selectionLabel(_ title: String, icon: String, isDestructive: Bool = false) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 18, weight: .semibold))
+            Text(title).font(.system(.caption2, design: .rounded).weight(.semibold))
+        }
+        .foregroundStyle(isDestructive ? DesignSystem.AppColors.danger : DesignSystem.AppColors.accent)
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .contentShape(Rectangle())
+    }
+
+    private func endSelection() {
+        withAnimation(DesignSystem.Motion.spring) {
+            isSelecting = false
+            selectedIDs = []
+        }
+    }
+
+    // MARK: - Actions
+
+    private func add(_ tracks: [Track], to playlist: Playlist) {
+        let existing = Set(playlist.trackIDs)
+        playlist.trackIDs.append(contentsOf: tracks.map(\.id).filter { !existing.contains($0) })
+        do {
+            try context.save()
+            Haptics.notify()
+            endSelection()
+        } catch {
+            reportError(error.localizedDescription)
         }
     }
 
@@ -1191,19 +1439,119 @@ private struct TrackList: View {
         }
     }
 
-    private func removeTrackFromLibrary() {
-        guard let track = trackToDelete else { return }
-        for playlist in playlists {
-            playlist.trackIDs.removeAll { $0 == track.id }
+    private func confirmDeletion(_ tracks: [Track]) {
+        guard !tracks.isEmpty else { return }
+        pendingDeletion = tracks
+        showingDeleteConfirmation = true
+    }
+
+    private func removeFromLibrary(_ tracks: [Track]) {
+        let ids = Set(tracks.map(\.id))
+        guard !ids.isEmpty else { return }
+        // Stop/unqueue first so playback never touches a deleted model.
+        playback.remove(trackIDs: ids)
+        for playlist in playlists where playlist.trackIDs.contains(where: ids.contains) {
+            playlist.trackIDs.removeAll(where: ids.contains)
         }
-        context.delete(track)
+        if let albums = try? context.fetch(FetchDescriptor<Album>()) {
+            for album in albums where album.trackIDs.contains(where: ids.contains) {
+                album.trackIDs.removeAll(where: ids.contains)
+                if album.trackIDs.isEmpty { context.delete(album) }
+            }
+        }
+        tracks.forEach(context.delete)
         do {
             try context.save()
             Haptics.impact(.medium)
         } catch {
             reportError(error.localizedDescription)
         }
-        trackToDelete = nil
+        pendingDeletion = []
+        endSelection()
+    }
+}
+
+enum SongSort: String, CaseIterable, Identifiable {
+    case title = "Title"
+    case artist = "Artist"
+    case recentlyAdded = "Recently Added"
+    case mostPlayed = "Most Played"
+
+    var id: Self { self }
+
+    var symbol: String {
+        switch self {
+        case .title: "textformat"
+        case .artist: "music.mic"
+        case .recentlyAdded: "clock"
+        case .mostPlayed: "flame"
+        }
+    }
+
+    func sorted(_ tracks: [Track]) -> [Track] {
+        func byTitle(_ a: Track, _ b: Track) -> Bool {
+            a.title.localizedCaseInsensitiveCompare(b.title) == .orderedAscending
+        }
+        switch self {
+        case .title:
+            return tracks.sorted(by: byTitle)
+        case .artist:
+            return tracks.sorted {
+                let order = $0.artist.localizedCaseInsensitiveCompare($1.artist)
+                return order == .orderedSame ? byTitle($0, $1) : order == .orderedAscending
+            }
+        case .recentlyAdded:
+            return tracks.sorted { $0.dateAdded > $1.dateAdded }
+        case .mostPlayed:
+            return tracks.sorted { $0.playCount == $1.playCount ? byTitle($0, $1) : $0.playCount > $1.playCount }
+        }
+    }
+}
+
+/// Vertical A–Z strip: tap or drag to jump to a section.
+private struct AlphabetIndex: View {
+    let letters: [String]
+    let jump: (String) -> Void
+    @State private var current: String?
+
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                ForEach(letters, id: \.self) { letter in
+                    Text(letter)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(current == letter ? DesignSystem.AppColors.accentContrastText : DesignSystem.AppColors.accent)
+                        .frame(width: 18, height: 16)
+                        .background(current == letter ? DesignSystem.AppColors.accent : .clear, in: Circle())
+                }
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let rowHeight: CGFloat = 16
+                        let top = (geometry.size.height - rowHeight * CGFloat(letters.count)) / 2
+                        let index = Int((value.location.y - top) / rowHeight)
+                        guard letters.indices.contains(index), letters[index] != current else { return }
+                        current = letters[index]
+                        jump(letters[index])
+                        Haptics.selection()
+                    }
+                    .onEnded { _ in current = nil }
+            )
+        }
+        .frame(width: 22)
+        .padding(.trailing, 2)
+        .accessibilityElement()
+        .accessibilityLabel("Section index")
+        .accessibilityAdjustableAction { direction in
+            let index = letters.firstIndex(of: current ?? letters.first ?? "") ?? 0
+            let next = direction == .increment ? min(index + 1, letters.count - 1) : max(index - 1, 0)
+            guard letters.indices.contains(next) else { return }
+            current = letters[next]
+            jump(letters[next])
+        }
     }
 }
 
@@ -1215,6 +1563,7 @@ private struct SongOptionsMenu: View {
     let reportError: (String) -> Void
     let deleteTrack: () -> Void
     let createPlaylist: () -> Void
+    var editTrack: (() -> Void)? = nil
     @State private var isPresented = false
 
     var body: some View {
@@ -1245,6 +1594,9 @@ private struct SongOptionsMenu: View {
                 Button("Create Playlist…", systemImage: AppIcon.createPlaylist.symbolName()) {
                     createPlaylist()
                 }
+            }
+            if let editTrack {
+                Button("Edit Info…", systemImage: "pencil", action: editTrack)
             }
             Button("Delete from Library", systemImage: AppIcon.delete.symbolName(), role: .destructive) {
                 deleteTrack()
@@ -1308,9 +1660,15 @@ private struct AlbumList: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         ForEach(albums.keys.sorted(), id: \.self) { key in
                             if let albumTracks = albums[key], let first = albumTracks.first {
-                                Button {
-                                    playback.play(first, from: albumTracks)
-                                    onTrackSelected()
+                                NavigationLink {
+                                    TrackCollectionView(
+                                        title: first.albumTitle,
+                                        subtitle: first.artist,
+                                        artworkData: albumTracks.lazy.compactMap(\.artworkData).first,
+                                        tracks: albumTracks.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending },
+                                        playback: playback,
+                                        onTrackSelected: onTrackSelected
+                                    )
                                 } label: {
                                     VStack(alignment: .leading, spacing: 6) {
                                         DesignSystem.ArtworkView(
@@ -1332,6 +1690,16 @@ private struct AlbumList: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(DesignSystem.PremiumPressStyle())
+                                .contextMenu {
+                                    Button("Play", systemImage: AppIcon.play.symbolName()) {
+                                        playback.play(first, from: albumTracks)
+                                        onTrackSelected()
+                                    }
+                                    Button("Shuffle", systemImage: AppIcon.shuffle.symbolName()) {
+                                        playback.playShuffled(albumTracks)
+                                        onTrackSelected()
+                                    }
+                                }
                             }
                         }
                     }
@@ -1368,11 +1736,16 @@ private struct ArtistList: View {
             } else {
                 ForEach(Dictionary(grouping: tracks, by: \.artist).keys.sorted(), id: \.self) { artist in
                     let artistTracks = tracks.filter { $0.artist == artist }
-                    Button {
-                        if let first = artistTracks.first {
-                            playback.play(first, from: artistTracks)
-                            onTrackSelected()
-                        }
+                        .sorted { ($0.albumTitle, $0.title) < ($1.albumTitle, $1.title) }
+                    NavigationLink {
+                        TrackCollectionView(
+                            title: artist,
+                            subtitle: "\(Set(artistTracks.map(\.albumTitle)).count) albums",
+                            showsArtistAvatar: true,
+                            tracks: artistTracks,
+                            playback: playback,
+                            onTrackSelected: onTrackSelected
+                        )
                     } label: {
                         HStack(spacing: 12) {
                             DesignSystem.ArtistAvatar(name: artist, size: 56)
@@ -1384,6 +1757,12 @@ private struct ArtistList: View {
                         }
                     }
                     .buttonStyle(DesignSystem.PremiumPressStyle())
+                    .contextMenu {
+                        Button("Shuffle Artist", systemImage: AppIcon.shuffle.symbolName()) {
+                            playback.playShuffled(artistTracks)
+                            onTrackSelected()
+                        }
+                    }
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                 }
@@ -1425,6 +1804,48 @@ private struct PlaylistList: View {
                 .padding(12)
                 .glassCard(cornerRadius: 20)
                 .padding(.bottom, 12)
+
+                DesignSystem.SectionHeader(title: "Smart Playlists")
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    ForEach(SmartPlaylist.allCases) { smart in
+                        let smartTracks = smart.tracks(from: tracks)
+                        NavigationLink {
+                            TrackCollectionView(
+                                title: smart.rawValue,
+                                emptyMessage: smart.emptyMessage,
+                                tracks: smartTracks,
+                                playback: playback,
+                                onTrackSelected: onTrackSelected
+                            )
+                        } label: {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Image(systemName: smart.symbol)
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(DesignSystem.AppColors.accent)
+                                    .frame(width: 40, height: 40)
+                                    .background(DesignSystem.AppColors.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(smart.rawValue)
+                                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    Text("\(smartTracks.count) songs")
+                                        .font(.system(.caption, design: .rounded))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .glassCard(cornerRadius: 18)
+                        }
+                        .buttonStyle(DesignSystem.PremiumPressStyle())
+                    }
+                }
+                .padding(.bottom, 16)
+
+                if !playlists.isEmpty {
+                    DesignSystem.SectionHeader(title: "Your Playlists")
+                }
 
                 if playlists.isEmpty {
                     DesignSystem.EmptyStateView(
@@ -1637,9 +2058,8 @@ private struct PlaylistDetailView: View {
     }
 
     private func shufflePlaylist() {
-        guard let first = playlistTracks.randomElement() else { return }
-        if !playback.isShuffled { playback.toggleShuffle() }
-        playback.play(first, from: playlistTracks)
+        guard !playlistTracks.isEmpty else { return }
+        playback.playShuffled(playlistTracks)
         onTrackSelected()
     }
 
@@ -1828,20 +2248,27 @@ private struct MiniPlayer: View {
 
     var body: some View {
         if let track = playback.currentTrack {
-            let progress = track.duration > 0
-                ? min(max(playback.elapsed / track.duration, 0), 1)
-                : 0
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Button(action: open) {
                     HStack(spacing: 12) {
-                        DesignSystem.ArtworkView(data: track.artworkData, size: 44, placeholderKey: track.albumTitle)
-                        VStack(alignment: .leading, spacing: 4) {
+                        DesignSystem.ArtworkView(data: track.artworkData, size: 46, placeholderKey: track.albumTitle, cornerRadius: 12)
+                            .overlay(alignment: .bottomTrailing) {
+                                if playback.isPlaying {
+                                    Circle()
+                                        .fill(DesignSystem.AppColors.accent)
+                                        .frame(width: 8, height: 8)
+                                        .padding(3)
+                                        .background(.black.opacity(0.6), in: Circle())
+                                        .offset(x: 2, y: 2)
+                                }
+                            }
+                        VStack(alignment: .leading, spacing: 3) {
                             Text(track.title)
-                                .font(DesignSystem.headline)
+                                .font(.system(.subheadline, design: .rounded).weight(.semibold))
                                 .foregroundStyle(DesignSystem.AppColors.primaryText)
                                 .lineLimit(1)
                             Text(track.artist)
-                                .font(DesignSystem.subhead)
+                                .font(.system(.caption, design: .rounded))
                                 .foregroundStyle(DesignSystem.AppColors.secondaryText)
                                 .lineLimit(1)
                         }
@@ -1850,53 +2277,65 @@ private struct MiniPlayer: View {
                 }
                 .buttonStyle(DesignSystem.PremiumPressStyle())
 
+                // Play / Pause
                 Button {
-                    playback.togglePlayback()
+                    withAnimation(DesignSystem.Motion.spring) {
+                        playback.togglePlayback()
+                    }
+                    Haptics.impact(.medium)
                 } label: {
-                    AppIconView(
-                        icon: playback.isPlaying ? .pause : .play,
-                        size: .playerSecondary,
-                        weight: .semibold,
-                        color: playback.isPlaying ? DesignSystem.AppColors.accent : DesignSystem.AppColors.secondaryText
-                    )
-                    .frame(width: 44, height: 44)
-                    .contentTransition(.symbolEffect(.replace))
+                    Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(playback.isPlaying ? DesignSystem.AppColors.accent : DesignSystem.AppColors.primaryText)
+                        .frame(width: 44, height: 44)
+                        .contentTransition(.symbolEffect(.replace))
                 }
                 .buttonStyle(DesignSystem.PremiumPressStyle())
                 .accessibilityLabel(playback.isPlaying ? "Pause" : "Play")
 
+                // Next
                 Button {
                     playback.next()
+                    Haptics.impact(.light)
                 } label: {
-                    AppIconView(icon: .next, size: .playerSecondary, color: DesignSystem.AppColors.secondaryText)
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(DesignSystem.AppColors.secondaryText)
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(DesignSystem.PremiumPressStyle())
                 .accessibilityLabel("Next track")
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, minHeight: 64, maxHeight: 64)
-            .glassCard(cornerRadius: 28)
+            .glassCard(cornerRadius: 24)
             .overlay(alignment: .bottom) {
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        DesignSystem.AppColors.border
-                        DesignSystem.AppColors.accent
-                            .frame(width: geometry.size.width * progress)
-                    }
-                    .frame(height: 2)
-                }
-                .frame(height: 2)
+                MiniProgressBar(clock: playback.clock, duration: track.duration)
+                .frame(height: 2.5)
                 .clipShape(Capsule())
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 16)
                 .padding(.bottom, 1)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(
-                color: DesignSystem.Shadows.soft.color,
-                radius: DesignSystem.Shadows.soft.radius,
-                x: DesignSystem.Shadows.soft.x,
-                y: DesignSystem.Shadows.soft.y
+                color: Color.black.opacity(0.18),
+                radius: 16,
+                x: 0,
+                y: 6
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 25)
+                    .onEnded { value in
+                        if value.translation.width < -40 {
+                            playback.next()
+                            Haptics.impact(.medium)
+                        } else if value.translation.width > 40 {
+                            playback.previous()
+                            Haptics.impact(.medium)
+                        } else if value.translation.height < -30 {
+                            open()
+                        }
+                    }
             )
         }
     }
@@ -1909,22 +2348,34 @@ private struct NowPlayingView: View {
     let isOnline: Bool
     let playlists: [Playlist]
     let context: ModelContext
-    let showQueue: () -> Void
     let openSettings: () -> Void
     let mergeTrack: (Track) -> Void
     @State private var dismissalOffset = CGSize.zero
     @State private var isDismissing = false
     @State private var showingOptions = false
     @State private var showingCreatePlaylist = false
+    @State private var showingQueue = false
+    @State private var trackToEdit: Track?
+
+    private func showQueue() { showingQueue = true }
 
     var body: some View {
         GeometryReader { geometry in
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
+                // Top Sheet Indicator
+                Capsule()
+                    .fill(Color.primary.opacity(0.25))
+                    .frame(width: 38, height: 5)
+                    .padding(.top, 4)
+
+                // Top Navigation Bar
                 HStack {
                     Button {
-                        dismissPlayer(width: geometry.size.width)
+                        dismissPlayer(direction: .down, width: geometry.size.width)
                     } label: {
-                        AppIconView(icon: .dismiss, size: .toolbar, weight: .semibold)
+                        Image(systemName: "chevron.compact.down")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(DesignSystem.AppColors.primaryText)
                             .frame(width: 44, height: 44)
                             .glassCircle()
                     }
@@ -1933,18 +2384,14 @@ private struct NowPlayingView: View {
 
                     Spacer()
 
-                    HStack(spacing: 7) {
-                        Circle()
-                            .fill(isOnline ? DesignSystem.AppColors.success : DesignSystem.AppColors.tertiaryText)
-                            .frame(width: 7, height: 7)
-                        Text(isOnline ? "ONLINE" : "OFFLINE")
-                            .font(DesignSystem.caption.weight(.bold))
-                            .tracking(0.8)
+                    VStack(spacing: 2) {
+                        Text("NOW PLAYING")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(1.4)
                             .foregroundStyle(DesignSystem.AppColors.secondaryText)
                     }
-                    .padding(.horizontal, 10)
-                    .frame(height: 32)
-                    .glassCapsule()
+
+                    Spacer()
 
                     Menu {
                         Button("Show queue", systemImage: AppIcon.queue.symbolName()) {
@@ -1972,16 +2419,8 @@ private struct NowPlayingView: View {
                                     showingCreatePlaylist = true
                                 }
                             }
-                            Button(
-                                playback.repeatMode == .one ? "Stop Repeating" : "Repeat This Song",
-                                systemImage: playback.repeatMode == .one
-                                    ? AppIcon.repeatOne.symbolName()
-                                    : AppIcon.repeatAll.symbolName()
-                            ) {
-                                withAnimation(DesignSystem.Motion.spring) {
-                                    playback.setRepeatMode(playback.repeatMode == .one ? .off : .one)
-                                }
-                                Haptics.impact(.light)
+                            Button("Edit Info…", systemImage: "pencil") {
+                                trackToEdit = track
                             }
                             Button("Merge Songs…", systemImage: AppIcon.merge.symbolName()) {
                                 mergeTrack(track)
@@ -1991,97 +2430,82 @@ private struct NowPlayingView: View {
                             openSettings()
                         }
                     } label: {
-                        AppIconView(icon: .more, size: .toolbar, weight: .semibold)
-                            .rotationEffect(.degrees(showingOptions ? 90 : 0))
-                            .scaleEffect(showingOptions ? 1.08 : 1)
-                            .symbolEffect(.bounce, value: showingOptions)
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(DesignSystem.AppColors.primaryText)
                             .frame(width: 44, height: 44)
                             .glassCircle()
-                            .overlay {
-                                Circle()
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [DesignSystem.AppColors.border, DesignSystem.AppColors.card, DesignSystem.AppColors.accent.opacity(0.16)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
-                            }
-                            .shadow(color: DesignSystem.AppColors.accent.opacity(0.16), radius: 12, y: 3)
-                            .animation(DesignSystem.Motion.spring, value: showingOptions)
                     }
                     .accessibilityLabel("More options")
-                    .onChange(of: showingOptions) {
-                        if showingOptions { Haptics.impact(.light) }
-                    }
                 }
 
                 Spacer(minLength: 0)
+
                 if let track = playback.currentTrack {
-                    VStack(spacing: 24) {
+                    VStack(spacing: 18) {
+                        // Artwork with breathing scale, drop shadow, and horizontal swipe
                         DesignSystem.ArtworkView(
                             data: track.artworkData,
-                            size: min(geometry.size.width - 40, 340),
+                            size: min(geometry.size.width - 44, 320),
                             placeholderKey: track.albumTitle,
-                            cornerRadius: 28
+                            cornerRadius: 26
                         )
-                            .frame(maxWidth: .infinity)
-                            .scaleEffect(playback.isPlaying ? 1 : 0.92)
-                            .animation(reduceMotion ? nil : DesignSystem.Motion.spring, value: playback.isPlaying)
+                        .scaleEffect(playback.isPlaying ? 1.0 : 0.88)
+                        .shadow(
+                            color: DesignSystem.AppColors.accent.opacity(playback.isPlaying ? 0.35 : 0.1),
+                            radius: playback.isPlaying ? 24 : 10,
+                            y: playback.isPlaying ? 12 : 6
+                        )
+                        .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.75), value: playback.isPlaying)
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 30)
+                                .onEnded { val in
+                                    if val.translation.width < -40 {
+                                        playback.next()
+                                        Haptics.impact(.medium)
+                                    } else if val.translation.width > 40 {
+                                        playback.previous()
+                                        Haptics.impact(.medium)
+                                    }
+                                }
+                        )
 
-                        HStack(spacing: 14) {
-                            VStack(alignment: .leading, spacing: 6) {
+                        // Title, Artist and Heart Favorite Button
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text(track.title)
-                                    .font(DesignSystem.navigationTitle)
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
                                     .foregroundStyle(DesignSystem.AppColors.primaryText)
                                     .lineLimit(1)
                                 Text(track.artist)
-                                    .font(DesignSystem.headline)
+                                    .font(.system(size: 15, weight: .medium, design: .rounded))
                                     .foregroundStyle(DesignSystem.AppColors.secondaryText)
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 0)
+
                             Button {
-                                withAnimation(DesignSystem.Motion.spring) {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
                                     track.isFavorite.toggle()
                                 }
-                                Haptics.impact(.light)
+                                Haptics.impact(.medium)
                             } label: {
-                                AppIconView(icon: .favorite, size: .playerSecondary, weight: .semibold, isActive: track.isFavorite, color: track.isFavorite ? DesignSystem.AppColors.accent : .secondary)
-                                    .symbolEffect(.bounce, value: track.isFavorite)
-                                    .frame(width: 50, height: 50)
+                                Image(systemName: track.isFavorite ? "heart.fill" : "heart")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundStyle(track.isFavorite ? Color.pink : DesignSystem.AppColors.secondaryText)
+                                    .scaleEffect(track.isFavorite ? 1.15 : 1.0)
+                                    .frame(width: 46, height: 46)
                                     .glassCircle()
                             }
                             .buttonStyle(DesignSystem.PremiumPressStyle())
                             .accessibilityLabel(track.isFavorite ? "Remove from favorites" : "Add to favorites")
                         }
+                        .padding(.horizontal, 4)
 
-                        VStack(spacing: 8) {
-                            Slider(
-                                value: Binding(
-                                    get: { playback.elapsed },
-                                    set: { playback.seek(to: $0) }
-                                ),
-                                in: 0...max(track.duration, 1)
-                            ) { editing in
-                                if !editing {
-                                    Haptics.impact(.light)
-                                }
-                            }
-                            .tint(DesignSystem.AppColors.accent)
-                            HStack {
-                                Text(formatTime(playback.elapsed))
-                                    .contentTransition(.numericText())
-                                Spacer()
-                                Text("−\(formatTime(max(track.duration - playback.elapsed, 0)))")
-                                    .contentTransition(.numericText())
-                            }
-                            .font(.system(.caption, design: .rounded).monospacedDigit())
-                            .foregroundStyle(DesignSystem.AppColors.secondaryText)
-                        }
+                        Scrubber(playback: playback, clock: playback.clock, duration: track.duration)
 
-                        PlaybackControlPanel(playback: playback)
+                        // Playback Controls
+                        PlaybackControlPanel(playback: playback, showQueue: showQueue)
                     }
                     .id(track.id)
                     .transition(
@@ -2092,14 +2516,14 @@ private struct NowPlayingView: View {
                                 .combined(with: .opacity)
                         )
                     )
-                    .clipped()
                     .animation(DesignSystem.Motion.spring, value: playback.currentTrack?.id)
                 }
+
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, DesignSystem.AppSpacing.screen)
-            .padding(.top, 12)
-            .padding(.bottom, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .offset(dismissalOffset)
             .scaleEffect(isDismissing ? 0.94 : 1)
@@ -2124,12 +2548,26 @@ private struct NowPlayingView: View {
                         .resizable()
                         .scaledToFill()
                         .clipped()
-                        .blur(radius: 48)
-                        .opacity(0.2)
-                        .overlay(DesignSystem.AppColors.accent.opacity(0.06))
+                        .blur(radius: 54)
+                        .opacity(0.35)
+                        .overlay(DesignSystem.AppColors.accent.opacity(0.08))
+                } else {
+                    RadialGradient(
+                        colors: [DesignSystem.AppColors.accent.opacity(0.22), Color.clear],
+                        center: .center,
+                        startRadius: 20,
+                        endRadius: 260
+                    )
+                    .blur(radius: 30)
                 }
             }
             .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showingQueue) {
+            QueueView(playback: playback)
+        }
+        .sheet(item: $trackToEdit) { track in
+            EditTrackView(track: track)
         }
         .sheet(isPresented: $showingCreatePlaylist) {
             CreatePlaylistSheet(message: "The currently playing song will be added to the new playlist.") { name in
@@ -2270,23 +2708,58 @@ private struct QueueView: View {
     }
 }
 
-private struct EditTrackView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Bindable var track: Track
+/// Observes only the clock, so the 2 Hz tick doesn't re-render the whole mini player.
+private struct MiniProgressBar: View {
+    @ObservedObject var clock: PlaybackClock
+    let duration: Double
 
     var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Title", text: $track.title)
-                TextField("Artist", text: $track.artist)
-                TextField("Album", text: $track.albumTitle)
+        let progress = duration > 0 ? min(max(clock.elapsed / duration, 0), 1) : 0
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                DesignSystem.AppColors.border
+                DesignSystem.AppColors.accent
+                    .frame(width: geometry.size.width * progress)
             }
-            .navigationTitle("Edit Tags")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .topBarTrailing) { Button("Save") { dismiss() } }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("Playback progress")
+        .accessibilityValue("\(Int(progress * 100)) percent")
+    }
+}
+
+/// Holds its own value while dragging and seeks once on release, so the
+/// periodic time update can't fight the user's finger.
+private struct Scrubber: View {
+    @ObservedObject var playback: PlaybackService
+    @ObservedObject var clock: PlaybackClock
+    let duration: Double
+    @State private var dragValue: Double?
+
+    var body: some View {
+        let shown = dragValue ?? clock.elapsed
+        VStack(spacing: 6) {
+            Slider(
+                value: Binding(get: { shown }, set: { dragValue = $0 }),
+                in: 0...max(duration, 1)
+            ) { editing in
+                if !editing, let dragValue {
+                    playback.seek(to: dragValue)
+                    self.dragValue = nil
+                    Haptics.impact(.light)
+                }
             }
+            .tint(DesignSystem.AppColors.accent)
+            .accessibilityLabel("Playback position")
+            .accessibilityValue("\(formatTime(shown)) of \(formatTime(duration))")
+
+            HStack {
+                Text(formatTime(shown))
+                Spacer()
+                Text("−\(formatTime(max(duration - shown, 0)))")
+            }
+            .font(.system(.caption, design: .rounded).monospacedDigit())
+            .foregroundStyle(DesignSystem.AppColors.secondaryText)
         }
     }
 }

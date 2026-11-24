@@ -7,40 +7,32 @@ import UIKit
 final class URLImportViewModel: ObservableObject {
     @Published var urlText = ""
     @Published var isDownloading = false
-    @Published var progress: Double = 0
+    @Published var didFinish = false
     @Published var errorMessage: String?
     @Published var isURLValid = false
     var modelContext: ModelContext?
 
     private let downloadService: any DownloadServicing
-    private let libraryService: any LibraryServicing
 
-    init(
-        downloadService: some DownloadServicing,
-        libraryService: some LibraryServicing,
-        modelContext: ModelContext? = nil
-    ) {
+    init(downloadService: any DownloadServicing, modelContext: ModelContext? = nil) {
         self.downloadService = downloadService
-        self.libraryService = libraryService
         self.modelContext = modelContext
     }
 
     convenience init(modelContext: ModelContext? = nil) {
-        self.init(
-            downloadService: DownloadService.shared,
-            libraryService: LibraryService(),
-            modelContext: modelContext
-        )
+        self.init(downloadService: DownloadService.shared, modelContext: modelContext)
     }
 
+    @discardableResult
     func validateURL() -> Bool {
-        guard let url = URL(string: urlText), url.scheme != nil, url.host != nil else { return false }
-        isURLValid = true
-        return true
+        let trimmed = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = URL(string: trimmed)
+        isURLValid = ["http", "https"].contains(url?.scheme?.lowercased() ?? "") && url?.host?.isEmpty == false
+        return isURLValid
     }
 
     func beginImport() async {
-        guard validateURL(), let url = URL(string: urlText) else {
+        guard validateURL(), let url = URL(string: urlText.trimmingCharacters(in: .whitespacesAndNewlines)) else {
             errorMessage = "Enter a valid direct audio URL."
             return
         }
@@ -63,33 +55,13 @@ final class URLImportViewModel: ObservableObject {
             }
 
             isDownloading = true
-            progress = 0.1
-            let downloaded = try await downloadService.download(from: url)
+            // Downloads in the background and imports into the library when done.
+            _ = try await downloadService.download(from: url)
             isDownloading = false
-            progress = 1
-            let bookmark = try downloaded.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
-            let title = downloaded.deletingPathExtension().lastPathComponent
-            let track = Track(
-                title: title,
-                artist: "Unknown Artist",
-                albumTitle: "Unknown Album",
-                duration: 0,
-                artworkData: nil,
-                bookmarkData: bookmark,
-                originalFilename: downloaded.lastPathComponent,
-                isDownloaded: true,
-                isAvailableOffline: true,
-                remoteURLString: url.absoluteString
-            )
-            guard let context = modelContext else {
-                errorMessage = "Unable to save the imported track to the library."
-                return
-            }
-            context.insert(track)
-            try context.save()
+            didFinish = true
+            Haptics.notify()
         } catch {
             isDownloading = false
-            progress = 0
             errorMessage = error.localizedDescription
         }
     }
@@ -97,6 +69,7 @@ final class URLImportViewModel: ObservableObject {
 
 struct URLImportView: View {
     @StateObject private var viewModel = URLImportViewModel()
+    @ObservedObject private var downloads = DownloadService.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @State private var connectivity = ConnectivityService()
@@ -160,9 +133,14 @@ struct URLImportView: View {
 
                     if viewModel.isDownloading {
                         VStack(alignment: .leading, spacing: 12) {
-                            ProgressView(value: viewModel.progress, total: 1.0)
+                            let fraction = URL(string: viewModel.urlText.trimmingCharacters(in: .whitespacesAndNewlines))
+                                .flatMap { downloads.progress[$0] } ?? 0
+                            ProgressView(value: fraction)
                                 .tint(DesignSystem.AppColors.accent)
-                            Text("Downloading…")
+                            Text(fraction > 0 ? "Downloading… \(Int(fraction * 100))%" : "Starting download…")
+                                .font(DesignSystem.subhead.monospacedDigit())
+                                .foregroundStyle(DesignSystem.AppColors.secondaryText)
+                            Text("You can close this screen. The download continues in the background.")
                                 .font(DesignSystem.subhead)
                                 .foregroundStyle(DesignSystem.AppColors.secondaryText)
                         }
@@ -205,10 +183,12 @@ struct URLImportView: View {
         .onAppear {
             viewModel.modelContext = modelContext
         }
+        .onChange(of: viewModel.didFinish) {
+            if viewModel.didFinish { dismiss() }
+        }
         .onChange(of: viewModel.urlText) {
             viewModel.errorMessage = nil
-            viewModel.isURLValid = false
-            _ = viewModel.validateURL()
+            viewModel.validateURL()
         }
     }
 }

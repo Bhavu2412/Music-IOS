@@ -1,169 +1,271 @@
+import AVKit
+import MediaPlayer
 import SwiftUI
+
+struct SystemVolumeSlider: UIViewRepresentable {
+    func makeUIView(context: Context) -> MPVolumeView {
+        let volumeView = MPVolumeView(frame: .zero)
+        volumeView.showsVolumeSlider = true
+        for view in volumeView.subviews {
+            if let slider = view as? UISlider {
+                slider.tintColor = UIColor(DesignSystem.AppColors.accent)
+            }
+        }
+        return volumeView
+    }
+
+    func updateUIView(_ uiView: MPVolumeView, context: Context) {}
+}
+
+struct AirPlayRoutePicker: UIViewRepresentable {
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let picker = AVRoutePickerView()
+        picker.tintColor = UIColor(DesignSystem.AppColors.secondaryText)
+        picker.activeTintColor = UIColor(DesignSystem.AppColors.accent)
+        picker.prioritizesVideoDevices = false
+        return picker
+    }
+
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+}
 
 struct PlaybackControlPanel: View {
     @ObservedObject var playback: PlaybackService
+    var showQueue: (() -> Void)? = nil
+
     @State private var modeAnimationTrigger = false
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
+            // MARK: - Shuffle, Skip 15, Repeat Bar
             HStack {
-                Label("NOW PLAYING", systemImage: AppIcon.waveform.symbolName())
-                    .font(.system(.caption, design: .rounded).weight(.bold))
-                    .tracking(1.4)
-                    .foregroundStyle(DesignSystem.AppColors.secondaryText)
-                Spacer()
-                Button(action: cyclePlaybackMode) {
-                    AppIconView(
-                        icon: playbackModeSymbol,
-                        size: .playerSecondary,
-                        weight: .semibold,
-                        color: playbackMode == .normal ? .secondary : DesignSystem.AppColors.accent
-                    )
-                        .frame(width: 44, height: 44)
-                        .glassCircle()
-                        .contentTransition(.symbolEffect(.replace))
-                        .symbolEffect(.bounce, value: modeAnimationTrigger)
+                // Shuffle Button
+                Button {
+                    withAnimation(DesignSystem.Motion.spring) {
+                        playback.toggleShuffle()
+                    }
+                    Haptics.impact(.medium)
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "shuffle")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(playback.isShuffled ? DesignSystem.AppColors.accent : DesignSystem.AppColors.secondaryText)
+
+                        Circle()
+                            .fill(playback.isShuffled ? DesignSystem.AppColors.accent : Color.clear)
+                            .frame(width: 4, height: 4)
+                    }
+                    .frame(width: 44, height: 40)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(DesignSystem.PremiumPressStyle())
-                .accessibilityLabel("Playback mode: \(playbackModeName)")
-                .accessibilityHint("Cycles between normal, shuffle, and repeat")
-            }
+                .accessibilityLabel(playback.isShuffled ? "Shuffle active" : "Shuffle inactive")
 
-            HStack(spacing: 8) {
-                skipButton(.skipBack, label: "Back 15 seconds") {
+                Spacer()
+
+                // Skip Back 15s
+                Button {
                     playback.skip(by: -15)
+                    Haptics.impact(.light)
+                } label: {
+                    Image(systemName: "gobackward.15")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(DesignSystem.AppColors.secondaryText)
+                        .frame(width: 44, height: 40)
                 }
-                transportButton(.previous, label: "Previous track") {
+                .buttonStyle(DesignSystem.PremiumPressStyle())
+                .accessibilityLabel("Rewind 15 seconds")
+
+                Spacer()
+
+                // Skip Forward 15s
+                Button {
+                    playback.skip(by: 15)
+                    Haptics.impact(.light)
+                } label: {
+                    Image(systemName: "goforward.15")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(DesignSystem.AppColors.secondaryText)
+                        .frame(width: 44, height: 40)
+                }
+                .buttonStyle(DesignSystem.PremiumPressStyle())
+                .accessibilityLabel("Fast forward 15 seconds")
+
+                Spacer()
+
+                // Repeat Button (off -> all -> one -> off)
+                Button {
+                    cycleRepeatMode()
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: repeatIconName)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(playback.repeatMode != .off ? DesignSystem.AppColors.accent : DesignSystem.AppColors.secondaryText)
+
+                        Circle()
+                            .fill(playback.repeatMode != .off ? DesignSystem.AppColors.accent : Color.clear)
+                            .frame(width: 4, height: 4)
+                    }
+                    .frame(width: 44, height: 40)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(DesignSystem.PremiumPressStyle())
+                .accessibilityLabel("Repeat: \(repeatModeLabel)")
+            }
+            .padding(.horizontal, 8)
+
+            // MARK: - Main Transport Controls (Prev, Big Play/Pause, Next)
+            HStack(spacing: 24) {
+                // Previous Track
+                Button {
                     playback.previous()
                     Haptics.impact(.light)
+                } label: {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(DesignSystem.AppColors.primaryText)
+                        .frame(width: 54, height: 54)
+                        .glassCircle()
                 }
-                playButton
-                transportButton(.next, label: "Next track") {
+                .buttonStyle(DesignSystem.PremiumPressStyle())
+                .accessibilityLabel("Previous track")
+
+                // Play / Pause Button (Large, glowing, morphing)
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        playback.togglePlayback()
+                    }
+                    Haptics.impact(.medium)
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.white, Color(white: 0.92)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 76, height: 76)
+                            .shadow(color: DesignSystem.AppColors.accent.opacity(playback.isPlaying ? 0.35 : 0.15), radius: 18, y: 6)
+                            .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+
+                        Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 30, weight: .bold))
+                            .foregroundStyle(DesignSystem.AppColors.accentContrastText)
+                            .offset(x: playback.isPlaying ? 0 : 2)
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+                    .frame(width: 76, height: 76)
+                }
+                .buttonStyle(DesignSystem.PremiumPressStyle())
+                .accessibilityLabel(playback.isPlaying ? "Pause" : "Play")
+
+                // Next Track
+                Button {
                     playback.next()
                     Haptics.impact(.light)
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(DesignSystem.AppColors.primaryText)
+                        .frame(width: 54, height: 54)
+                        .glassCircle()
                 }
-                skipButton(.skipForward, label: "Forward 15 seconds") {
-                    playback.skip(by: 15)
+                .buttonStyle(DesignSystem.PremiumPressStyle())
+                .accessibilityLabel("Next track")
+            }
+            .padding(.vertical, 4)
+
+            // MARK: - Volume Slider Bar
+            HStack(spacing: 12) {
+                Image(systemName: "speaker.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(DesignSystem.AppColors.secondaryText)
+
+                SystemVolumeSlider()
+                    .frame(height: 28)
+
+                Image(systemName: "speaker.wave.3.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(DesignSystem.AppColors.secondaryText)
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
+
+            // MARK: - Bottom Utility Row (AirPlay & Queue)
+            HStack {
+                AirPlayRoutePicker()
+                    .frame(width: 38, height: 38)
+                    .accessibilityLabel("Audio output route")
+
+                Spacer()
+
+                if let current = playback.currentTrack {
+                    Text(audioFormatLabel(for: current))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .tracking(0.5)
+                        .foregroundStyle(DesignSystem.AppColors.secondaryText)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .glassCapsule()
+                }
+
+                Spacer()
+
+                if let showQueue {
+                    Button(action: showQueue) {
+                        Image(systemName: "list.bullet")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(DesignSystem.AppColors.secondaryText)
+                            .frame(width: 38, height: 38)
+                            .glassCircle()
+                    }
+                    .buttonStyle(DesignSystem.PremiumPressStyle())
+                    .accessibilityLabel("Queue")
+                } else {
+                    Color.clear.frame(width: 38, height: 38)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-            .padding(.top, 12)
-
+            .padding(.horizontal, 8)
         }
-        .padding(20)
+        .padding(18)
         .glassCard(cornerRadius: 28)
     }
 
-    private var playbackMode: PlaybackMode {
-        if playback.repeatMode != .off { return .repeatAll }
-        return playback.isShuffled ? .shuffle : .normal
-    }
-
-    private var playbackModeSymbol: AppIcon {
-        switch playbackMode {
-        case .normal: .playbackModeNormal
-        case .shuffle: .shuffle
-        case .repeatAll: .repeatAll
+    private var repeatIconName: String {
+        switch playback.repeatMode {
+        case .off, .all: "repeat"
+        case .one: "repeat.1"
         }
     }
 
-    private var playbackModeName: String {
-        switch playbackMode {
-        case .normal: "Normal"
-        case .shuffle: "Shuffle"
-        case .repeatAll: "Repeat"
+    private var repeatModeLabel: String {
+        switch playback.repeatMode {
+        case .off: "Off"
+        case .all: "All tracks"
+        case .one: "One track"
         }
     }
 
-    private func cyclePlaybackMode() {
-        let nextMode: PlaybackMode
-        switch playbackMode {
-        case .normal: nextMode = .shuffle
-        case .shuffle: nextMode = .repeatAll
-        case .repeatAll: nextMode = .normal
-        }
+    private func cycleRepeatMode() {
         withAnimation(DesignSystem.Motion.spring) {
-            modeAnimationTrigger.toggle()
-            switch nextMode {
-            case .normal:
-                if playback.isShuffled { playback.toggleShuffle() }
-                playback.setRepeatMode(.off)
-            case .shuffle:
-                playback.setRepeatMode(.off)
-                if !playback.isShuffled { playback.toggleShuffle() }
-            case .repeatAll:
-                if playback.isShuffled { playback.toggleShuffle() }
-                playback.setRepeatMode(.all)
+            let next: QueueRepeatMode
+            switch playback.repeatMode {
+            case .off: next = .all
+            case .all: next = .one
+            case .one: next = .off
             }
+            playback.setRepeatMode(next)
         }
+        Haptics.impact(.medium)
     }
 
-    private enum PlaybackMode {
-        case normal
-        case shuffle
-        case repeatAll
+    private func audioFormatLabel(for track: Track) -> String {
+        let ext = (track.originalFilename as NSString).pathExtension.uppercased()
+        guard !ext.isEmpty else { return "AUDIO" }
+        if ["FLAC", "WAV", "ALAC", "AIFF", "AIF"].contains(ext) { return "\(ext) • LOSSLESS" }
+        if let bitrate = track.bitrate, bitrate > 0 { return "\(ext) • \(Int(bitrate / 1000)) KBPS" }
+        return ext
     }
-
-    private var playButton: some View {
-        Button {
-            withAnimation(DesignSystem.Motion.spring) {
-                playback.togglePlayback()
-            }
-            Haptics.impact(.medium)
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(.white)
-                    .frame(width: 72, height: 72)
-                    .shadow(color: .black.opacity(0.22), radius: 14, x: 0, y: 8)
-
-                AppIconView(
-                    icon: playback.isPlaying ? .pause : .play,
-                    size: .playerSecondary,
-                    weight: .semibold,
-                    color: DesignSystem.AppColors.accentContrastText
-                )
-                    .contentTransition(.symbolEffect(.replace))
-                    .offset(x: playback.isPlaying ? 0 : 2)
-            }
-            .frame(width: 72, height: 72)
-            .contentShape(Circle())
-        }
-        .buttonStyle(DesignSystem.PremiumPressStyle())
-        .accessibilityLabel(playback.isPlaying ? "Pause" : "Play")
-    }
-
-    private func transportButton(
-        _ icon: AppIcon,
-        label: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            AppIconView(icon: icon, size: .transport, weight: .regular)
-                .frame(width: 44, height: 44)
-                .glassCircle()
-                .contentTransition(.symbolEffect(.replace))
-        }
-        .buttonStyle(DesignSystem.PremiumPressStyle())
-        .accessibilityLabel(label)
-    }
-
-    private func skipButton(
-        _ icon: AppIcon,
-        label: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            action()
-            Haptics.impact(.light)
-        } label: {
-            AppIconView(icon: icon, size: .skip)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(DesignSystem.PremiumPressStyle())
-        .accessibilityLabel(label)
-    }
-
 }

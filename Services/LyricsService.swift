@@ -27,10 +27,6 @@ final class LyricsService: LyricsServicing {
             return parseLRC(data)
         }
 
-        if let lyrics = track.title.components(separatedBy: "[").first, lyrics.isEmpty == false {
-            return []
-        }
-
         return []
     }
 

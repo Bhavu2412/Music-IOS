@@ -5,7 +5,8 @@ import SwiftData
 @MainActor
 protocol MergeServicing {
     func detectDuplicateTracks(in tracks: [Track]) -> [(Track, Track)]
-    func mergeDuplicateTracks(_ duplicates: [(Track, Track)], in context: ModelContext) throws
+    @discardableResult
+    func mergeDuplicateTracks(_ duplicates: [(Track, Track)], in context: ModelContext) throws -> Set<UUID>
     func mergePlaylists(_ playlists: [Playlist], into name: String, in context: ModelContext) throws -> Playlist
     func exportMergedAudio(from tracks: [Track], crossfade: Double, outputName: String) async throws -> URL
 }
@@ -30,11 +31,18 @@ final class MergeService: MergeServicing {
         return matches
     }
 
-    func mergeDuplicateTracks(_ duplicates: [(Track, Track)], in context: ModelContext) throws {
+
+
+    /// Merges each pair into the higher-bitrate copy. Returns the IDs of deleted tracks
+    /// so callers can drop them from the playback queue.
+    @discardableResult
+    func mergeDuplicateTracks(_ duplicates: [(Track, Track)], in context: ModelContext) throws -> Set<UUID> {
+        var deleted = Set<UUID>()
+        var replacement: [UUID: UUID] = [:]
         for (primary, secondary) in duplicates {
-            let primaryBitrate = primary.bitrate ?? 0
-            let secondaryBitrate = secondary.bitrate ?? 0
-            let winner = primaryBitrate >= secondaryBitrate ? primary : secondary
+            // With 3+ copies the pairs overlap; skip any pair whose track was already merged away.
+            guard !deleted.contains(primary.id), !deleted.contains(secondary.id) else { continue }
+            let winner = (primary.bitrate ?? 0) >= (secondary.bitrate ?? 0) ? primary : secondary
             let loser = winner.id == primary.id ? secondary : primary
             winner.title = winner.title.isEmpty ? loser.title : winner.title
             winner.artist = winner.artist == "Unknown Artist" && loser.artist != "Unknown Artist" ? loser.artist : winner.artist
@@ -42,9 +50,29 @@ final class MergeService: MergeServicing {
             winner.artworkData = winner.artworkData ?? loser.artworkData
             winner.playCount += loser.playCount
             winner.isFavorite = winner.isFavorite || loser.isFavorite
+            replacement[loser.id] = winner.id
+            deleted.insert(loser.id)
             context.delete(loser)
         }
+        guard !deleted.isEmpty else { return deleted }
+
+        // Follow chains (a→b, then b→c) to the final survivor.
+        func survivor(of id: UUID) -> UUID {
+            var current = id
+            while let next = replacement[current] { current = next }
+            return current
+        }
+        // Point playlists at the surviving copy, without duplicating it.
+        for playlist in try context.fetch(FetchDescriptor<Playlist>()) {
+            var seen = Set<UUID>()
+            let ids = playlist.trackIDs.map(survivor(of:)).filter { seen.insert($0).inserted }
+            if ids != playlist.trackIDs { playlist.trackIDs = ids }
+        }
+        for album in try context.fetch(FetchDescriptor<Album>()) where album.trackIDs.contains(where: deleted.contains) {
+            album.trackIDs.removeAll(where: deleted.contains)
+        }
         try context.save()
+        return deleted
     }
 
     func mergePlaylists(_ playlists: [Playlist], into name: String, in context: ModelContext) throws -> Playlist {

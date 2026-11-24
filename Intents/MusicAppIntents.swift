@@ -24,8 +24,8 @@ struct NextTrackIntent: AppIntent {
 }
 
 struct ShuffleLibraryIntent: AppIntent {
-    static var title: LocalizedStringResource = "Shuffle library"
-    static var description: LocalizedStringResource = "Start shuffled playback across the library."
+    static var title: LocalizedStringResource = "Toggle shuffle"
+    static var description: LocalizedStringResource = "Turn shuffle on or off for the current queue."
 
     @MainActor
     func perform() async throws -> some IntentResult {

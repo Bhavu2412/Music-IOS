@@ -35,3 +35,20 @@ final class WidgetDataService: WidgetDataServicing {
         return state
     }
 }
+
+// Shared with the widget extension so it can render the Live Activity.
+#if canImport(ActivityKit)
+import ActivityKit
+
+struct NowPlayingAttributes: ActivityAttributes {
+    public typealias ContentState = DynamicIslandState
+
+    var name: String
+}
+
+struct DynamicIslandState: Codable & Hashable {
+    var track: String
+    var artist: String
+    var isPlaying: Bool
+}
+#endif
