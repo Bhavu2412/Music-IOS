@@ -408,6 +408,8 @@ enum DesignSystem {
             HStack(spacing: 0) {
                 ForEach(LibraryTab.allCases) { tab in
                     Button {
+                        guard selection != tab else { return }
+                        Haptics.selection()
                         withAnimation(DesignSystem.Motion.spring) {
                             selection = tab
                         }

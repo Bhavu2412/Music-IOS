@@ -166,15 +166,11 @@ final class PlaybackService: ObservableObject, PlaybackServicing {
 
     /// Bookkeeping when a track starts without a fresh load (gapless or crossfade).
     private func becomeCurrent(_ track: Track) {
-        let isNewTrack = currentTrack?.id != track.id
         trackTransitionDirection = .next
         currentTrack = track
         track.playCount += 1
         track.lastPlayedAt = .now
         clock.elapsed = engine.currentTime
-        if isNewTrack, #available(iOS 16.1, *) {
-            LiveActivityService.shared.startActivity(track: track, isPlaying: true)
-        }
         persistState()
         publishState()
     }
@@ -376,7 +372,6 @@ final class PlaybackService: ObservableObject, PlaybackServicing {
         currentTrack = nil
         isPlaying = false
         clock.elapsed = 0
-        if #available(iOS 16.1, *) { LiveActivityService.shared.stopActivity() }
         updateNowPlaying()
     }
 
@@ -386,8 +381,8 @@ final class PlaybackService: ObservableObject, PlaybackServicing {
             releaseQueuedTrack()
             currentScopedURL?.stopAccessingSecurityScopedResource()
             currentScopedURL = url.startAccessingSecurityScopedResource() ? url : nil
+            if autoplay { try? AVAudioSession.sharedInstance().setActive(true) }
             try engine.load(url, at: position, autoplay: autoplay)
-            let isNewTrack = currentTrack?.id != track.id
             currentTrack = track
             if autoplay {
                 track.playCount += 1
@@ -395,9 +390,6 @@ final class PlaybackService: ObservableObject, PlaybackServicing {
             }
             clock.elapsed = engine.currentTime
             isPlaying = autoplay
-            if isNewTrack, autoplay, #available(iOS 16.1, *) {
-                LiveActivityService.shared.startActivity(track: track, isPlaying: true)
-            }
             persistState()
             publishState()
         } catch {
@@ -496,16 +488,9 @@ final class PlaybackService: ObservableObject, PlaybackServicing {
             Task { @MainActor in self?.previous() }
             return .success
         }
-        center.skipForwardCommand.preferredIntervals = [15]
-        center.skipForwardCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.skip(by: 15) }
-            return .success
-        }
-        center.skipBackwardCommand.preferredIntervals = [15]
-        center.skipBackwardCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.skip(by: -15) }
-            return .success
-        }
+        // With skip commands on, iOS swaps next/previous for ±15 s buttons in the Dynamic Island and lock screen.
+        center.skipForwardCommand.isEnabled = false
+        center.skipBackwardCommand.isEnabled = false
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             Task { @MainActor in self?.seek(to: event.positionTime) }
@@ -534,24 +519,23 @@ final class PlaybackService: ObservableObject, PlaybackServicing {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
-    /// Lock screen, widget, and Live Activity. Called on track or play-state changes only (widget reloads are budgeted).
+    /// Lock screen, Dynamic Island (system Now Playing), widgets, and controls. Called on track or play-state changes only (widget reloads are budgeted).
     private func publishState() {
         updateNowPlaying()
         guard let track = currentTrack else { return }
         WidgetDataService.shared.saveNowPlayingState(WidgetTrackState(
             title: track.title,
             artist: track.artist,
-            artworkData: track.artworkData,
+            artworkData: WidgetDataService.downscaledJPEG(track.artworkData, side: 600, quality: 0.8),
             isPlaying: isPlaying,
             queueCount: queue.count
         ))
-        if #available(iOS 16.1, *) {
-            LiveActivityService.shared.update(track: track, isPlaying: isPlaying)
-        }
     }
 
     func startPlayback() {
         guard currentTrack != nil, !isPlaying else { return }
+        // A widget or control may launch the app in the background, or an interruption may have deactivated the session.
+        try? AVAudioSession.sharedInstance().setActive(true)
         engine.play()
         isPlaying = true
         persistState()

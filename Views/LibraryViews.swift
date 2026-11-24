@@ -66,13 +66,10 @@ struct LibraryTabsView: View {
             AnimatedArtworkBackground()
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                NavigationStack {
+            NavigationStack {
                     tabContent
                         .navigationTitle(selectedTab.rawValue)
                         .navigationBarTitleDisplayMode(.large)
-                        .toolbarBackground(DesignSystem.AppColors.background, for: .navigationBar)
-                        .toolbarBackground(.visible, for: .navigationBar)
                         .toolbar {
                             if selectedTab == .library {
                                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -96,19 +93,21 @@ struct LibraryTabsView: View {
                 }
                 // Fresh stack per tab, so a pushed album page doesn't linger on other tabs.
                 .id(selectedTab)
-
-                if playback.currentTrack != nil {
-                    MiniPlayer(playback: playback) {
-                        presentNowPlaying()
+                // An inset, not a stacked row, so lists scroll underneath the glass player and tab bar.
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    VStack(spacing: 0) {
+                        if playback.currentTrack != nil {
+                            MiniPlayer(playback: playback) {
+                                presentNowPlaying()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 6)
+                            .padding(.bottom, 8)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                        DesignSystem.GlassTabBar(selection: $selectedTab)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 6)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-
-                DesignSystem.GlassTabBar(selection: $selectedTab)
-            }
         }
         .symbolRenderingMode(.hierarchical)
         .tint(DesignSystem.AppColors.accent)
@@ -175,7 +174,7 @@ struct LibraryTabsView: View {
                 showingAudioMerge = false
             })
         }
-        .fullScreenCover(isPresented: $showingNowPlaying, onDismiss: {
+        .sheet(isPresented: $showingNowPlaying, onDismiss: {
             guard shouldPresentMergeAfterPlayerDismissal else { return }
             shouldPresentMergeAfterPlayerDismissal = false
             showingAudioMerge = true
@@ -195,6 +194,9 @@ struct LibraryTabsView: View {
                     showingNowPlaying = false
                 }
             )
+            // Native sheet: the swipe-down follows your finger and leaves room for lyrics scrolling.
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(36)
         }
         .alert("Music", isPresented: Binding(
             get: { viewModel.errorMessage != nil || playback.errorMessage != nil },
@@ -597,7 +599,7 @@ private struct SearchLibraryView: View {
                     }
                 }
                 .padding(.top, 4)
-                .padding(.bottom, 110)
+                .padding(.bottom, 16)
                 .animation(DesignSystem.Motion.spring, value: hasQuery)
             }
             .scrollIndicators(.hidden)
@@ -1710,7 +1712,7 @@ private struct AlbumList: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
-                    .padding(.bottom, 110)
+                    .padding(.bottom, 16)
                 }
             }
             .scrollIndicators(.hidden)
@@ -1902,7 +1904,7 @@ private struct PlaylistList: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
-            .padding(.bottom, 110)
+            .padding(.bottom, 16)
         }
         .scrollIndicators(.hidden)
         .background(DesignSystem.AppColors.background)
@@ -2355,8 +2357,6 @@ private struct NowPlayingView: View {
     let context: ModelContext
     let openSettings: () -> Void
     let mergeTrack: (Track) -> Void
-    @State private var dismissalOffset = CGSize.zero
-    @State private var isDismissing = false
     @State private var showingOptions = false
     @State private var showingCreatePlaylist = false
     @State private var showingQueue = false
@@ -2367,17 +2367,13 @@ private struct NowPlayingView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            // Artwork shrinks on shorter screens so the controls never get pushed off.
+            let artworkSide = max(min(geometry.size.width - 40, geometry.size.height - 540), 200)
             VStack(spacing: 16) {
-                // Top Sheet Indicator
-                Capsule()
-                    .fill(Color.primary.opacity(0.25))
-                    .frame(width: 38, height: 5)
-                    .padding(.top, 4)
-
                 // Top Navigation Bar
                 HStack {
                     Button {
-                        dismissPlayer(direction: .down, width: geometry.size.width)
+                        dismiss()
                     } label: {
                         Image(systemName: "chevron.compact.down")
                             .font(.system(size: 22, weight: .bold))
@@ -2453,13 +2449,13 @@ private struct NowPlayingView: View {
                             LyricsView(track: track, playback: playback, clock: playback.clock) {
                                 trackToEdit = track
                             }
-                            .frame(height: min(geometry.size.width - 44, 320))
+                            .frame(height: artworkSide)
                             .transition(.opacity)
                         } else {
                         // Artwork with breathing scale, drop shadow, and horizontal swipe
                         DesignSystem.ArtworkView(
                             data: track.artworkData,
-                            size: min(geometry.size.width - 44, 320),
+                            size: artworkSide,
                             placeholderKey: track.albumTitle,
                             cornerRadius: 26
                         )
@@ -2550,23 +2546,9 @@ private struct NowPlayingView: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, DesignSystem.AppSpacing.screen)
-            .padding(.top, 4)
-            .padding(.bottom, 16)
+            .padding(.top, 20)
+            .padding(.bottom, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .offset(dismissalOffset)
-            .scaleEffect(isDismissing ? 0.94 : 1)
-            .opacity(isDismissing ? 0.72 : 1)
-            .contentShape(Rectangle())
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 28)
-                    .onEnded { value in
-                        if value.translation.width > 90 && abs(value.translation.width) > abs(value.translation.height) {
-                            dismissPlayer(direction: .right, width: geometry.size.width)
-                        } else if value.translation.height > 100 && abs(value.translation.width) < 70 {
-                            dismissPlayer(direction: .down, width: geometry.size.width)
-                        }
-                    }
-            )
         }
         .background {
             ZStack {
@@ -2630,27 +2612,6 @@ private struct NowPlayingView: View {
         } catch {
             playback.errorMessage = error.localizedDescription
         }
-    }
-
-    private func dismissPlayer(
-        direction: DismissDirection = .right,
-        width: CGFloat
-    ) {
-        guard !isDismissing else { return }
-        withAnimation(DesignSystem.Motion.spring) {
-            isDismissing = true
-            dismissalOffset = direction == .right
-                ? CGSize(width: width + 40, height: 0)
-                : CGSize(width: 0, height: 240)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-            dismiss()
-        }
-    }
-
-    private enum DismissDirection: Equatable {
-        case right
-        case down
     }
 }
 

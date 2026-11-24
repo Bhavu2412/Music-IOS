@@ -76,21 +76,19 @@ final class MusicPhase5Tests: XCTestCase {
         XCTAssertNil(LyricsService.parse("   "))
     }
 
-    func testLiveActivityPayloadFitsActivityKitLimit() throws {
-        // A big, noisy image: the worst case for JPEG size.
-        let big = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 1200)).jpegData(withCompressionQuality: 1) { ctx in
+    func testWidgetArtworkIsDownscaledSquare() throws {
+        // A big, non-square, noisy image: the worst case for widget memory.
+        let big = UIGraphicsImageRenderer(size: CGSize(width: 2400, height: 1600)).jpegData(withCompressionQuality: 1) { ctx in
             for i in 0..<400 {
                 UIColor(hue: CGFloat(i % 37) / 37, saturation: 1, brightness: 1, alpha: 1).setFill()
-                ctx.fill(CGRect(x: (i * 53) % 1200, y: (i * 97) % 1200, width: 60, height: 60))
+                ctx.fill(CGRect(x: (i * 53) % 2400, y: (i * 97) % 1600, width: 60, height: 60))
             }
         }
-        let state = NowPlayingAttributes.ContentState(
-            track: String(repeating: "Long Song Title ", count: 6),
-            artist: String(repeating: "Artist ", count: 6),
-            artworkData: LiveActivityService.thumbnail(big),
-            isPlaying: true
-        )
-        let payload = try JSONEncoder().encode(state)
-        XCTAssertLessThan(payload.count, 4096, "ActivityKit rejects content over 4 KB")
+        let small = try XCTUnwrap(WidgetDataService.downscaledJPEG(big, side: 600, quality: 0.8))
+        let image = try XCTUnwrap(UIImage(data: small))
+        XCTAssertEqual(image.size.width * image.scale, 600)
+        XCTAssertEqual(image.size.height * image.scale, 600)
+        XCTAssertLessThan(small.count, big.count)
+        XCTAssertNil(WidgetDataService.downscaledJPEG(nil, side: 600, quality: 0.8))
     }
 }

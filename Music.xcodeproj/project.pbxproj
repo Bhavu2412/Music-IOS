@@ -11,7 +11,6 @@
 		0BD876821B714DAEB2E8AE08 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8161AF5DE92DEA46F3ECED /* WidgetDataService.swift */; };
 		0F1DD93BEA186BFA866762AE /* DownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2FB951ECA1A6A0925BE14B5 /* DownloadService.swift */; };
 		10C73FB9188EAA6E0D65B7CC /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C140B85FF2C5EF6AC3B61D2 /* SearchService.swift */; };
-		1179DE2994124581F3537396 /* LiveActivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71B49284760E8C5740F3236 /* LiveActivityService.swift */; };
 		14583EE598DFDBE8850C67C0 /* ConnectivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DEBC4B6B79E7B6C39A965A3 /* ConnectivityService.swift */; };
 		2036B9AA8DA9E63943B9C130 /* EqualizerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42959F11612E8FA3E74EE2F1 /* EqualizerService.swift */; };
 		3DCB7D4FF04832AF4989BF80 /* SleepTimerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78381097F3C6A454AB2B9483 /* SleepTimerService.swift */; };
@@ -117,7 +116,6 @@
 		C2802B052469AED666C3F109 /* URLImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLImportView.swift; sourceTree = "<group>"; };
 		C4285A2AE4DE579A3AE312EB /* LyricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsService.swift; sourceTree = "<group>"; };
 		C604AB13EAB5F1EA2A72CD48 /* PlaybackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackService.swift; sourceTree = "<group>"; };
-		C71B49284760E8C5740F3236 /* LiveActivityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityService.swift; sourceTree = "<group>"; };
 		C80D3AFE33C7CA8FDE338DFB /* MergeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeViews.swift; sourceTree = "<group>"; };
 		CA1A496842DC99781551539C /* AudioEnginePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEnginePlayer.swift; sourceTree = "<group>"; };
 		D020E17F8361E9B54A7BB63C /* MusicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicApp.swift; sourceTree = "<group>"; };
@@ -161,7 +159,6 @@
 				D2FB951ECA1A6A0925BE14B5 /* DownloadService.swift */,
 				42959F11612E8FA3E74EE2F1 /* EqualizerService.swift */,
 				AB7E6771AACEEC7CC4B94F1C /* LibraryService.swift */,
-				C71B49284760E8C5740F3236 /* LiveActivityService.swift */,
 				C4285A2AE4DE579A3AE312EB /* LyricsService.swift */,
 				57A036D4763FC6720E0D9229 /* MergeService.swift */,
 				C604AB13EAB5F1EA2A72CD48 /* PlaybackService.swift */,
@@ -408,7 +405,6 @@
 				7150432B9F00B7C66974DA0F /* LibraryService.swift in Sources */,
 				F0222B8801200D1CF9B22891 /* LibraryViewModel.swift in Sources */,
 				654AB7A3C9C4AFC2F199E861 /* LibraryViews.swift in Sources */,
-				1179DE2994124581F3537396 /* LiveActivityService.swift in Sources */,
 				4287CA3941503278BCC31017 /* LyricsService.swift in Sources */,
 				E825FE0BDCAFE6F6494107CD /* LyricsView.swift in Sources */,
 				3F8F7ADA8C938C29412BD490 /* MergeService.swift in Sources */,

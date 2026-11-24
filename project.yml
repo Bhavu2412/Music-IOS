@@ -33,7 +33,6 @@ targets:
         UIBackgroundModes:
           - audio
         UILaunchScreen: {}
-        NSSupportsLiveActivities: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UISupportedInterfaceOrientations~ipad:

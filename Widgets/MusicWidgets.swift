@@ -1,4 +1,3 @@
-import ActivityKit
 import AppIntents
 import SwiftUI
 import UIKit
@@ -94,8 +93,19 @@ struct NowPlayingWidgetView: View {
         }
         }
         .tint(Color(red: 0.486, green: 0.514, blue: 1))
+        // Text sits on dark, artwork-tinted glass, so render it light in both appearances.
+        .environment(\.colorScheme, .dark)
         .containerBackground(for: .widget) {
-            Color.black.opacity(0.01)
+            ZStack {
+                Color.black
+                if let data = entry.state?.artworkData, let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .blur(radius: 28)
+                        .opacity(0.6)
+                }
+            }
         }
     }
 
@@ -160,92 +170,6 @@ struct NowPlayingWidget: Widget {
     }
 }
 
-struct NowPlayingLiveActivity: Widget {
-    var body: some WidgetConfiguration {
-        ActivityConfiguration(for: NowPlayingAttributes.self) { context in
-            HStack(spacing: 12) {
-                Image(systemName: context.state.isPlaying ? "waveform" : "pause.fill")
-                    .font(.title2)
-                VStack(alignment: .leading) {
-                    Text(context.state.track).font(.headline).lineLimit(1)
-                    Text(context.state.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding()
-        } dynamicIsland: { context in
-            DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) {
-                    if let data = context.state.artworkData, let image = UIImage(data: data) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 48, height: 48)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    } else {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(.quaternary)
-                            .frame(width: 48, height: 48)
-                            .overlay(Image(systemName: "music.note").foregroundStyle(.secondary))
-                    }
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(context.state.track)
-                            .font(.headline)
-                            .lineLimit(1)
-                        Text(context.state.artist)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    HStack(spacing: 28) {
-                        Button(intent: PreviousTrackIntent()) {
-                            Image(systemName: "backward.fill")
-                                .font(.title3)
-                        }
-                        Button(intent: PlayPauseIntent()) {
-                            Image(systemName: context.state.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.title2.weight(.bold))
-                        }
-                        Button(intent: NextTrackIntent()) {
-                            Image(systemName: "forward.fill")
-                                .font(.title3)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.primary)
-                    .padding(.top, 6)
-                }
-            } compactLeading: {
-                if let data = context.state.artworkData, let image = UIImage(data: data) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 18, height: 18)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                } else {
-                    Image(systemName: "music.note")
-                }
-            } compactTrailing: {
-                Image(systemName: context.state.isPlaying ? "waveform" : "pause.fill")
-            } minimal: {
-                if let data = context.state.artworkData, let image = UIImage(data: data) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 16, height: 16)
-                        .clipShape(Circle())
-                } else {
-                    Image(systemName: "music.note")
-                }
-            }
-        }
-    }
-}
-
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> NowPlayingWidgetEntry {
         NowPlayingWidgetEntry(date: .now, state: nil)
@@ -261,13 +185,23 @@ struct Provider: TimelineProvider {
     }
 }
 
-/// Control Center / Lock Screen / Action button control (iOS 18+).
+/// Reads the play state the app shares, so the control shows Play or Pause.
+@available(iOS 18.0, *)
+struct NowPlayingValueProvider: ControlValueProvider {
+    var previewValue: Bool { false }
+
+    func currentValue() async throws -> Bool {
+        WidgetDataService.shared.loadNowPlayingState()?.isPlaying ?? false
+    }
+}
+
+/// Control Center / Lock Screen / Action button controls (iOS 18+).
 @available(iOS 18.0, *)
 struct PlayPauseControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: "MusicPlayPause") {
+        StaticControlConfiguration(kind: "MusicPlayPause", provider: NowPlayingValueProvider()) { isPlaying in
             ControlWidgetButton(action: PlayPauseIntent()) {
-                Label("Play / Pause", systemImage: "playpause.fill")
+                Label(isPlaying ? "Pause" : "Play", systemImage: isPlaying ? "pause.fill" : "play.fill")
             }
         }
         .displayName("Play / Pause")
@@ -275,13 +209,40 @@ struct PlayPauseControl: ControlWidget {
     }
 }
 
+@available(iOS 18.0, *)
+struct NextTrackControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "MusicNextTrack") {
+            ControlWidgetButton(action: NextTrackIntent()) {
+                Label("Next Song", systemImage: "forward.fill")
+            }
+        }
+        .displayName("Next Song")
+        .description("Skip to the next song in Music.")
+    }
+}
+
+@available(iOS 18.0, *)
+struct PreviousTrackControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "MusicPreviousTrack") {
+            ControlWidgetButton(action: PreviousTrackIntent()) {
+                Label("Previous Song", systemImage: "backward.fill")
+            }
+        }
+        .displayName("Previous Song")
+        .description("Go back to the previous song in Music.")
+    }
+}
+
 @main
 struct MusicWidgets: WidgetBundle {
     var body: some Widget {
         NowPlayingWidget()
-        NowPlayingLiveActivity()
         if #available(iOS 18.0, *) {
             PlayPauseControl()
+            NextTrackControl()
+            PreviousTrackControl()
         }
     }
 }

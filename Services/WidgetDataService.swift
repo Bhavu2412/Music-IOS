@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import WidgetKit
 
 struct WidgetTrackState: Codable {
@@ -28,6 +29,23 @@ final class WidgetDataService: WidgetDataServicing {
             userDefaults.set(data, forKey: key)
         }
         WidgetCenter.shared.reloadAllTimelines()
+        if #available(iOS 18.0, *) {
+            ControlCenter.shared.reloadAllControls()
+        }
+    }
+
+    /// Square, aspect-filled JPEG. Widgets run in ~30 MB and drop oversized images,
+    /// so they never get the original artwork.
+    static func downscaledJPEG(_ data: Data?, side: CGFloat, quality: CGFloat) -> Data? {
+        guard let data, let image = UIImage(data: data), image.size.width > 0, image.size.height > 0 else { return nil }
+        let scale = max(side / image.size.width, side / image.size.height)
+        let drawn = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+            .jpegData(withCompressionQuality: quality) { _ in
+                image.draw(in: CGRect(x: (side - drawn.width) / 2, y: (side - drawn.height) / 2, width: drawn.width, height: drawn.height))
+            }
     }
 
     func loadNowPlayingState() -> WidgetTrackState? {
@@ -37,21 +55,3 @@ final class WidgetDataService: WidgetDataServicing {
         return state
     }
 }
-
-// Shared with the widget extension so it can render the Live Activity.
-#if canImport(ActivityKit)
-import ActivityKit
-
-struct NowPlayingAttributes: ActivityAttributes {
-    public typealias ContentState = DynamicIslandState
-
-    var name: String
-}
-
-struct DynamicIslandState: Codable & Hashable {
-    var track: String
-    var artist: String
-    var artworkData: Data?
-    var isPlaying: Bool
-}
-#endif
