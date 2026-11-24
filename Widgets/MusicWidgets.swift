@@ -14,6 +14,8 @@ struct NowPlayingWidgetView: View {
     let entry: NowPlayingWidgetEntry
 
     var body: some View {
+        // Group so the modifiers below apply to whichever layout the switch picks.
+        Group {
         switch family {
         case .systemSmall:
             ZStack(alignment: .bottomLeading) {
@@ -89,6 +91,7 @@ struct NowPlayingWidgetView: View {
                 }
                 Spacer(minLength: 0)
             }
+        }
         }
         .tint(Color(red: 0.486, green: 0.514, blue: 1))
         .containerBackground(for: .widget) {

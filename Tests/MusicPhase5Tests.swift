@@ -1,4 +1,5 @@
 import SwiftData
+import UIKit
 import XCTest
 @testable import Music
 
@@ -73,5 +74,23 @@ final class MusicPhase5Tests: XCTestCase {
         XCTAssertEqual(lines.map(\.text), ["Hello", "Chorus", "Chorus"])
         XCTAssertEqual(LyricsService.parse("just words\nmore"), .plain("just words\nmore"))
         XCTAssertNil(LyricsService.parse("   "))
+    }
+
+    func testLiveActivityPayloadFitsActivityKitLimit() throws {
+        // A big, noisy image: the worst case for JPEG size.
+        let big = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 1200)).jpegData(withCompressionQuality: 1) { ctx in
+            for i in 0..<400 {
+                UIColor(hue: CGFloat(i % 37) / 37, saturation: 1, brightness: 1, alpha: 1).setFill()
+                ctx.fill(CGRect(x: (i * 53) % 1200, y: (i * 97) % 1200, width: 60, height: 60))
+            }
+        }
+        let state = NowPlayingAttributes.ContentState(
+            track: String(repeating: "Long Song Title ", count: 6),
+            artist: String(repeating: "Artist ", count: 6),
+            artworkData: LiveActivityService.thumbnail(big),
+            isPlaying: true
+        )
+        let payload = try JSONEncoder().encode(state)
+        XCTAssertLessThan(payload.count, 4096, "ActivityKit rejects content over 4 KB")
     }
 }
