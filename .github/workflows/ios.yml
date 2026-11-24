@@ -1,0 +1,127 @@
+# Tests on a simulator, then builds Music.ipa for iPhone with scripts/build-ios.sh,
+# the same script used locally. Signing setup mirrors the `of` repo's build-all.yml.
+#
+# Without signing secrets the device job still runs and uploads Music-unsigned.ipa
+# (proves the device build; not installable as-is). With them it uploads a
+# development-signed Music.ipa that installs on devices in the profiles.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   BUILD_CERTIFICATE_BASE64        Apple Development cert + private key as .p12, base64
+#                                   (the same cert as the `of` repo works: it's per team, not per app)
+#   P12_PASSWORD                    password of that .p12
+#   BUILD_PROVISION_PROFILE_BASE64  development profile for <prefix>.Music, base64
+#   WIDGET_PROVISION_PROFILE_BASE64 development profile for <prefix>.Music.Widgets, base64
+# Both profiles must include the App Group group.<prefix>.Music and the devices to install on.
+# Team ID and bundle prefix are read from the profiles, so there's nothing else to configure.
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-26 # Xcode 26, same major as the dev Macs
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate project
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          xcodegen generate
+
+      - name: Unit tests
+        run: |
+          # Newest iOS runtime's first iPhone; simulator names change between Xcode images.
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime
+                     for d in devices[runtime] if d["name"].startswith("iPhone")))')
+          echo "Simulator: $UDID"
+          xcodebuild test -project Music.xcodeproj -scheme Music \
+            -destination "id=$UDID" -resultBundlePath "$RUNNER_TEMP/Tests.xcresult" -quiet
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ runner.temp }}/Tests.xcresult
+
+  device:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      HAS_SIGNING: ${{ secrets.BUILD_CERTIFICATE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Without these secrets build-ios.sh builds Music-unsigned.ipa, exactly as
+      # it does locally without DEVELOPMENT_TEAM.
+      - name: Install signing certificate and profiles
+        if: env.HAS_SIGNING == 'true'
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          WIDGET_PROVISION_PROFILE_BASE64: ${{ secrets.WIDGET_PROVISION_PROFILE_BASE64 }}
+        run: |
+          [ -n "$BUILD_PROVISION_PROFILE_BASE64" ] && [ -n "$WIDGET_PROVISION_PROFILE_BASE64" ] || {
+            echo "::error::BUILD_CERTIFICATE_BASE64 is set, so both BUILD_PROVISION_PROFILE_BASE64 and WIDGET_PROVISION_PROFILE_BASE64 are needed (the widget is signed separately)."
+            exit 1
+          }
+          CERT="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          # A new keychain auto-locks after 5 min; the build runs far longer.
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          # Add to the search list (not just default) so codesign finds it in later steps.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          install_profile() { # $1 = base64 profile, $2 = env var for its UUID
+            local profile="$RUNNER_TEMP/$2.mobileprovision" plist uuid
+            echo -n "$1" | base64 --decode -o "$profile"
+            plist="$(security cms -D -i "$profile")"
+            uuid="$(plutil -extract UUID raw - <<<"$plist")"
+            # Xcode 16+ reads UserData/; older tools read MobileDevice/.
+            for d in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
+              mkdir -p "$d" && cp "$profile" "$d/$uuid.mobileprovision"
+            done
+            echo "$2=$uuid" >> "$GITHUB_ENV"
+            PROFILE_PLIST="$plist"
+          }
+          install_profile "$WIDGET_PROVISION_PROFILE_BASE64" WIDGET_PROFILE_SPECIFIER
+          install_profile "$BUILD_PROVISION_PROFILE_BASE64" APP_PROFILE_SPECIFIER
+
+          # Team and bundle prefix come from the app profile: TEAMID.com.you.Music → com.you
+          echo "DEVELOPMENT_TEAM=$(plutil -extract TeamIdentifier.0 raw - <<<"$PROFILE_PLIST")" >> "$GITHUB_ENV"
+          APP_ID="$(plutil -extract Entitlements.application-identifier raw - <<<"$PROFILE_PLIST")"
+          BUNDLE_ID="${APP_ID#*.}"
+          echo "BUNDLE_ID_PREFIX=${BUNDLE_ID%.Music}" >> "$GITHUB_ENV"
+          echo "Signing $BUNDLE_ID"
+
+      - name: Build Music.ipa
+        run: bash scripts/build-ios.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: output/ios/
+          if-no-files-found: error
+
+      - name: Clean up keychain
+        if: always() && env.HAS_SIGNING == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true

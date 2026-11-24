@@ -17,7 +17,9 @@ protocol WidgetDataServicing {
 final class WidgetDataService: WidgetDataServicing {
     static let shared = WidgetDataService()
 
-    private let suiteName = "group.com.yourcompany.Music"
+    /// Set per build from APP_GROUP_ID (see project.yml), so it always matches the entitlement.
+    private let suiteName = Bundle.main.object(forInfoDictionaryKey: "AppGroupID") as? String
+        ?? "group.com.yourcompany.Music"
     private let key = "music.nowPlaying.widget"
 
     func saveNowPlayingState(_ state: WidgetTrackState) {

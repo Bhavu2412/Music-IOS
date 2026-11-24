@@ -47,3 +47,8 @@ example
 *.xcuserdata/
 DerivedData/
 
+
+# Device build output (scripts/build-ios.sh)
+/build/
+/output/
+xcuserdata/

@@ -12,7 +12,7 @@ protocol DownloadServicing {
 @MainActor
 final class DownloadService: NSObject, ObservableObject, DownloadServicing {
     static let shared = DownloadService()
-    static let sessionIdentifier = "com.yourcompany.Music.downloads"
+    static let sessionIdentifier = "\(Bundle.main.bundleIdentifier ?? "Music").downloads"
 
     /// Download progress (0...1) keyed by source URL.
     @Published private(set) var progress: [URL: Double] = [:]

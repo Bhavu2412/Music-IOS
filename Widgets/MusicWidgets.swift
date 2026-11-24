@@ -167,7 +167,7 @@ struct Provider: TimelineProvider {
 @available(iOS 18.0, *)
 struct PlayPauseControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: "com.yourcompany.Music.playPause") {
+        StaticControlConfiguration(kind: "MusicPlayPause") {
             ControlWidgetButton(action: PlayPauseIntent()) {
                 Label("Play / Pause", systemImage: "playpause.fill")
             }
