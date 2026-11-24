@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Music — Full App Preview</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0b10;
+      --bg-bottom: #12141c;
+      --surface: rgba(255,255,255,.07);
+      --surface-strong: rgba(255,255,255,.10);
+      --border: rgba(255,255,255,.12);
+      --primary: rgba(255,255,255,.94);
+      --secondary: rgba(255,255,255,.64);
+      --tertiary: rgba(255,255,255,.44);
+      --accent: #7c83ff;
+      --accent-ink: #0a0b10;
+      --danger: #ff6b6b;
+      --success: #4cd6a0;
+      --warning: #ffb84d;
+      --radius-card: 20px;
+      --radius-art: 12px;
+      --radius-sheet: 28px;
+      --shadow-float: 0 8px 24px rgba(0,0,0,.35);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--primary);
+      font: 15px/1.35 var(--font);
+      background:
+        radial-gradient(ellipse at 50% 0, rgba(124,131,255,.12), transparent 34rem),
+        linear-gradient(180deg,var(--bg),var(--bg-bottom));
+    }
+    button { font: inherit; color: inherit; }
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .icon {
+      width: 20px; height: 20px; display: inline-block; flex: 0 0 auto;
+      fill: none; stroke: currentColor; stroke-width: 1.75;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .icon.sm { width: 16px; height: 16px; }
+    .icon.md { width: 24px; height: 24px; }
+    .icon.lg { width: 28px; height: 28px; }
+    .icon.xl { width: 36px; height: 36px; }
+
+    .page-head {
+      max-width: 1560px;
+      margin: 0 auto;
+      padding: 34px 28px 22px;
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: end;
+    }
+    .eyebrow { color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 8px 0 6px; font-size: 34px; line-height: 1.06; letter-spacing: -.035em; }
+    .page-head p { margin: 0; max-width: 660px; color: var(--secondary); font-size: 15px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; justify-content: end; }
+    .legend span { border: 1px solid var(--border); background: var(--surface); padding: 7px 10px; border-radius: 999px; color: var(--secondary); font-size: 12px; }
+    .legend b { color: var(--primary); }
+    .screen-nav {
+      display: flex; gap: 8px; overflow-x: auto; padding: 0 28px 22px;
+      max-width: 1560px; margin: auto;
+    }
+    .screen-nav a {
+      flex: 0 0 auto; padding: 9px 13px; border: 1px solid var(--border);
+      border-radius: 999px; background: var(--surface); color: var(--secondary);
+      text-decoration: none; font-size: 13px;
+    }
+    .screen-nav a:hover { color: var(--primary); border-color: rgba(124,131,255,.5); }
+
+    .board {
+      max-width: 1560px; margin: 0 auto; padding: 0 28px 64px;
+      display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,360px),390px));
+      justify-content: center; gap: 34px 24px;
+    }
+    .preview { min-width: 0; }
+    .preview h2 { margin: 0 0 9px 4px; font-size: 15px; font-weight: 650; color: var(--primary); }
+    .preview h2 span { color: var(--secondary); font-weight: 450; }
+    .device {
+      height: 844px; width: 100%; max-width: 390px; margin: auto; position: relative;
+      overflow: hidden; border: 1px solid rgba(255,255,255,.18); border-radius: 42px;
+      background:
+        radial-gradient(ellipse at 56% 0, rgba(124,131,255,.12), transparent 18rem),
+        linear-gradient(180deg,var(--bg),var(--bg-bottom));
+      box-shadow: 0 24px 70px rgba(0,0,0,.45);
+      isolation: isolate;
+    }
+    .status {
+      position: absolute; z-index: 3; top: 0; left: 0; width: 100%; height: 38px;
+      padding: 12px 25px 0; display: flex; justify-content: space-between;
+      font-size: 12px; font-weight: 650; letter-spacing: .01em;
+    }
+    .status-right { display: flex; gap: 5px; align-items: center; }
+    .dynamic-island {
+      position: absolute; z-index: 4; width: 110px; height: 30px; border-radius: 20px;
+      background: #000; top: 8px; left: 50%; transform: translateX(-50%);
+    }
+    .app-screen { height: 100%; padding: 54px 20px 112px; overflow: hidden; position: relative; }
+    .app-screen.no-tabs { padding-bottom: 22px; }
+    .navline { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: 8px; }
+    .navline .actions { display: flex; align-items: center; gap: 4px; }
+    .page-title { font-size: 34px; line-height: 1.08; letter-spacing: -.035em; font-weight: 750; margin: 0 0 16px; }
+    .title-small { font-size: 22px; font-weight: 680; margin: 0; line-height: 1.12; }
+    .title-section { font-size: 22px; font-weight: 680; line-height: 1.1; margin: 26px 0 12px; }
+    .sub { color: var(--secondary); }
+    .tertiary { color: var(--tertiary); }
+    .tiny { font-size: 12px; }
+    .body { font-size: 17px; }
+    .subhead { font-size: 15px; }
+    .caption { font-size: 13px; }
+    .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .ellipsis { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .toolbar-button, .icon-button {
+      display: inline-grid; place-items: center; width: 44px; height: 44px;
+      border: 0; border-radius: 50%; background: transparent; color: var(--secondary);
+    }
+    .active { color: var(--accent); }
+    .pill, .glass {
+      border: 1px solid var(--border); background: var(--surface);
+      backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    }
+    .glass { border-radius: var(--radius-card); }
+    .capsule { border-radius: 999px; }
+    .primary-button, .secondary-button {
+      min-height: 48px; border: 0; border-radius: 999px; display: inline-flex;
+      align-items: center; justify-content: center; gap: 9px; padding: 0 18px;
+      font-size: 15px; font-weight: 650; white-space: nowrap;
+    }
+    .primary-button { background: var(--accent); color: var(--accent-ink); }
+    .secondary-button { border: 1px solid var(--border); background: var(--surface); color: var(--primary); }
+    .full { width: 100%; }
+    .segmented { display: flex; padding: 4px; gap: 3px; border-radius: 999px; margin-bottom: 2px; }
+    .segmented span {
+      flex: 1; display: grid; place-items: center; min-height: 44px; border-radius: 999px;
+      font-size: 13px; color: var(--secondary); white-space: nowrap;
+    }
+    .segmented .selected { color: var(--accent-ink); background: var(--accent); font-weight: 650; }
+    .section-row { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 12px; }
+    .section-row h3 { margin: 0; font-size: 22px; line-height: 1.12; font-weight: 680; }
+    .see-all { color: var(--accent); font-size: 15px; font-weight: 600; }
+    .art {
+      position: relative; flex: 0 0 auto; overflow: hidden; border-radius: var(--radius-art);
+      background: linear-gradient(135deg,#59699b,#262b49);
+      box-shadow: var(--shadow-float);
+    }
+    .art:after { content: ""; position: absolute; inset: 1px; border: 1px solid rgba(255,255,255,.08); border-radius: inherit; pointer-events: none; }
+    .art svg { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%,-50%); color: rgba(255,255,255,.4); }
+    .art-a { background: linear-gradient(135deg,#8d6a86,#30243e 72%); }
+    .art-b { background: linear-gradient(140deg,#667c8d,#263845 75%); }
+    .art-c { background: linear-gradient(145deg,#b38360,#49352e 76%); }
+    .art-d { background: linear-gradient(145deg,#7774a8,#302e57 75%); }
+    .art-e { background: linear-gradient(135deg,#769078,#283f39 75%); }
+    .art-f { background: linear-gradient(145deg,#9a7887,#493644 75%); }
+    .art-sm { width: 52px; height: 52px; }
+    .art-md { width: 60px; height: 60px; }
+    .art-lg { width: 140px; height: 140px; border-radius: 20px; }
+    .art-square { width: 100%; aspect-ratio: 1; border-radius: 20px; }
+    .art-player { width: 100%; aspect-ratio: 1; border-radius: 28px; }
+    .equalizer {
+      position: absolute; right: 3px; bottom: 3px; display: flex; gap: 2px;
+      align-items: end; height: 17px; padding: 3px 4px; border-radius: 9px;
+      background: rgba(0,0,0,.72); color: var(--accent);
+    }
+    .equalizer i { display: block; width: 2px; background: currentColor; border-radius: 2px; }
+    .equalizer i:nth-child(1) { height: 7px; }
+    .equalizer i:nth-child(2) { height: 11px; }
+    .equalizer i:nth-child(3) { height: 5px; }
+    .track {
+      height: 68px; display: flex; align-items: center; gap: 12px;
+      position: relative; min-width: 0;
+    }
+    .track-copy { flex: 1; min-width: 0; }
+    .track-title { font-size: 17px; font-weight: 640; line-height: 1.2; margin-bottom: 4px; }
+    .track-sub { font-size: 15px; color: var(--secondary); line-height: 1.15; }
+    .track.playing .track-title { color: var(--accent); }
+    .row-more { width: 44px; height: 44px; display: grid; place-items: center; color: var(--secondary); }
+    .row-gap { display: grid; gap: 3px; }
+    .card-list { padding: 6px 12px; }
+    .recent { display: flex; gap: 12px; overflow: hidden; }
+    .recent-card { width: 140px; flex: 0 0 140px; }
+    .recent-card .art { margin-bottom: 9px; }
+    .recent-title { font-size: 15px; font-weight: 650; margin-bottom: 3px; }
+    .artist-avatar {
+      width: 56px; height: 56px; flex: 0 0 56px; border-radius: 50%;
+      display: grid; place-items: center; font-size: 17px; font-weight: 650; color: var(--primary);
+      background: linear-gradient(135deg,#90718f,#394267);
+    }
+    .grid-albums { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+    .album-title { font-size: 17px; font-weight: 650; margin: 8px 0 3px; }
+    .artist-row { height: 72px; display: flex; align-items: center; gap: 12px; }
+    .playlist-row { min-height: 84px; display: flex; align-items: center; gap: 12px; }
+    .mosaic {
+      width: 60px; height: 60px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+      flex: 0 0 60px; overflow: hidden; border-radius: 12px;
+    }
+    .mosaic .art { width: 100%; height: 100%; border-radius: 3px; box-shadow: none; }
+    .tabs {
+      position: absolute; left: 16px; right: 16px; bottom: 13px; height: 68px;
+      padding: 6px 4px; display: flex; justify-content: space-around; align-items: center;
+      border: 1px solid var(--border); border-radius: 28px; background: rgba(31,33,43,.78);
+      backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); z-index: 5;
+    }
+    .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--secondary); font-size: 11px; font-weight: 550; }
+    .tab .tab-icon { width: 46px; height: 32px; border-radius: 20px; display: grid; place-items: center; }
+    .tab.selected { color: var(--accent); }
+    .tab.selected .tab-icon { background: rgba(124,131,255,.18); box-shadow: 0 0 16px rgba(124,131,255,.2); }
+    .mini {
+      position: absolute; z-index: 4; left: 16px; right: 16px; bottom: 90px;
+      min-height: 64px; padding: 8px 10px 8px 9px; display: flex; align-items: center; gap: 8px;
+      border-radius: 28px; box-shadow: var(--shadow-float);
+    }
+    .mini .art { width: 44px; height: 44px; border-radius: 12px; }
+    .mini-copy { min-width: 0; flex: 1; }
+    .mini-title { font-size: 15px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mini-artist { font-size: 13px; color: var(--secondary); margin-top: 2px; }
+    .mini .icon-button { width: 44px; height: 44px; }
+    .progress-line { position: absolute; height: 2px; left: 18px; right: 18px; bottom: 1px; background: rgba(255,255,255,.14); border-radius: 2px; overflow: hidden; }
+    .progress-line i { display: block; height: 100%; width: 38%; background: var(--accent); }
+    .searchbar {
+      height: 52px; border-radius: 999px; display: flex; align-items: center; gap: 9px;
+      padding: 0 12px; border: 1px solid var(--border); background: var(--surface);
+      color: var(--secondary); min-width: 0; flex: 1;
+    }
+    .filters { display: flex; gap: 8px; overflow: hidden; margin: 12px 0; }
+    .filter { min-height: 44px; display: grid; place-items: center; padding: 0 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--secondary); font-size: 15px; }
+    .filter.selected { color: var(--accent-ink); background: var(--accent); border-color: transparent; font-weight: 650; }
+    .offline {
+      display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px;
+      margin: 10px 0 4px; border-radius: 999px; color: var(--secondary);
+    }
+    .recent-search { min-height: 48px; display: flex; align-items: center; gap: 12px; }
+    .recent-search .label { flex: 1; }
+    .setting-label { color: var(--secondary); font-size: 13px; font-weight: 650; letter-spacing: .12em; margin: 18px 4px 10px; }
+    .setting-card { padding: 6px 12px; }
+    .setting-row { min-height: 56px; display: flex; align-items: center; gap: 12px; font-size: 15px; }
+    .setting-icon {
+      width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
+      background: rgba(124,131,255,.13); color: var(--accent);
+    }
+    .setting-icon .icon { width: 20px; height: 20px; }
+    .setting-value { margin-left: auto; color: var(--secondary); font-size: 15px; }
+    .divider { height: 1px; background: var(--border); margin-left: 42px; }
+    .switch { margin-left: auto; width: 48px; height: 30px; padding: 3px; border-radius: 18px; background: var(--accent); }
+    .switch:after { content: ""; display: block; width: 24px; height: 24px; border-radius: 50%; background: white; margin-left: auto; }
+    .sheet-dim:before {
+      content: ""; position: absolute; z-index: 7; inset: 0; background: rgba(0,0,0,.56);
+      backdrop-filter: blur(3px);
+    }
+    .sheet {
+      position: absolute; z-index: 8; left: 0; right: 0; bottom: 0; padding: 10px 20px 28px;
+      background: linear-gradient(180deg,rgba(32,34,44,.96),rgba(22,24,32,.99));
+      border: 1px solid var(--border); border-bottom: 0;
+      border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+      box-shadow: 0 -12px 38px rgba(0,0,0,.35);
+    }
+    .grabber { width: 36px; height: 5px; border-radius: 9px; background: rgba(255,255,255,.32); margin: 0 auto 18px; }
+    .sheet-title { font-size: 22px; font-weight: 680; margin: 0 0 16px; }
+    .sheet-option { min-height: 84px; padding: 14px; display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+    .option-icon { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; background: rgba(124,131,255,.14); color: var(--accent); }
+    .field { min-height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-radius: 15px; }
+    .field-line { color: var(--tertiary); flex: 1; }
+    .sheet-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .sheet-actions .primary-button { flex: 1; }
+    .track-progress { height: 4px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
+    .track-progress i { display: block; height: 100%; width: 61%; background: var(--accent); border-radius: inherit; }
+    .scrubber { height: 4px; margin: 18px 0 8px; border-radius: 5px; background: rgba(255,255,255,.18); position: relative; }
+    .scrubber:before { content: ""; position: absolute; inset: 0 auto 0 0; width: 38%; border-radius: inherit; background: var(--accent); }
+    .scrubber:after { content: ""; position: absolute; top: 50%; left: 38%; width: 16px; height: 16px; transform: translate(-50%,-50%); border-radius: 50%; background: var(--primary); }
+    .player-controls { display: flex; justify-content: space-between; align-items: center; margin: 15px -4px 10px; }
+    .player-controls > span { display: grid; place-items: center; width: 44px; height: 44px; color: var(--secondary); }
+    .play-circle { width: 72px !important; height: 72px !important; border-radius: 50%; background: #fff; color: var(--accent-ink) !important; }
+    .player-secondary { display: flex; justify-content: space-between; align-items: center; margin: 8px 4px 0; color: var(--secondary); }
+    .now-art { margin-top: 4px; }
+    .empty {
+      min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 22px 18px;
+    }
+    .empty-icon { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 16px; color: var(--accent); }
+    .empty h3 { font-size: 17px; margin: 0 0 6px; }
+    .empty p { color: var(--secondary); font-size: 15px; margin: 0 0 16px; }
+    .choice-row { min-height: 56px; display: flex; align-items: center; gap: 12px; }
+    .check { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--tertiary); border-radius: 50%; color: var(--accent-ink); }
+    .check.on { background: var(--accent); border-color: var(--accent); }
+    .bottom-cta { position: absolute; left: 20px; right: 20px; bottom: 20px; }
+    .menu-card {
+      position: absolute; z-index: 9; left: 18px; right: 18px; bottom: 24px;
+      padding: 12px; border-radius: 20px; background: rgba(37,39,49,.97);
+      border: 1px solid var(--border); box-shadow: 0 16px 42px rgba(0,0,0,.5);
+    }
+    .menu-head { display: flex; gap: 10px; align-items: center; padding: 4px 8px 12px; }
+    .menu-row { min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 10px; font-size: 15px; }
+    .menu-row .icon { color: var(--secondary); }
+    .menu-separator { height: 1px; background: var(--border); margin: 4px 0; }
+    .destructive { color: var(--danger) !important; }
+    .toast { position: absolute; left: 24px; right: 24px; bottom: 108px; z-index: 9; padding: 13px; text-align: center; border-radius: 16px; }
+    .queue-row { display: flex; align-items: center; gap: 12px; min-height: 68px; }
+    .queue-row .drag { color: var(--tertiary); margin-left: auto; }
+    .stepper { display: flex; align-items: center; justify-content: space-between; min-height: 56px; }
+    .stepper button { width: 44px; height: 44px; border: 0; border-radius: 50%; color: var(--primary); background: var(--surface-strong); }
+    .disabled { opacity: .42; }
+    .progress-ring { width: 18px; height: 18px; border: 2px solid rgba(10,11,16,.22); border-top-color: var(--accent-ink); border-radius: 50%; display: inline-block; }
+    .status-note { padding: 10px 12px; border-radius: 14px; color: var(--secondary); }
+    @media (max-width: 600px) {
+      .page-head { padding: 25px 18px 18px; display: block; }
+      .legend { justify-content: start; margin-top: 16px; }
+      .screen-nav { padding-inline: 18px; }
+      .board { padding: 0 12px 42px; grid-template-columns: minmax(0,390px); gap: 25px; }
+      .device { height: min(844px, calc(100dvh - 180px)); min-height: 720px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *:before, *:after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-house" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9M9 20v-6h6v6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.5.9l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.5-.9l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-1.8l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.5-.9l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.5.9l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1 0 1.8Z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></symbol>
+    <symbol id="i-album" viewBox="0 0 24 24"><rect x="4" y="4" width="13" height="16" rx="2"/><path d="M8 2h12a2 2 0 0 1 2 2v14"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 12 7-12 7z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="m5 5 10 7-10 7zM19 5v14"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="m19 5-10 7 10 7zM5 5v14"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.6 6.4"/><path d="M3 4v7h7"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-forward" viewBox="0 0 24 24"><path d="M21 11a9 9 0 1 0-2.6 6.4"/><path d="M21 4v7h-7"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="m18 14 4 4-4 4M2 18h2.5a6 6 0 0 0 4.8-2.4l5.4-7.2A6 6 0 0 1 19.5 6H22"/><path d="m18 2 4 4-4 4M2 6h2.5a6 6 0 0 1 3.8 1.4"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></symbol>
+    <symbol id="i-queue" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m18 6-12 12M6 6l12 12"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-offline" viewBox="0 0 24 24"><path d="m2 2 20 20M8.5 8.5a5 5 0 0 1 7 0M5 5a10 10 0 0 1 14 0M2 9a14 14 0 0 1 4-3M22 9a14 14 0 0 0-2-2M12 20h.01"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.1 0l3-3A5 5 0 0 0 13 2.9l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.1 0l-3 3A5 5 0 0 0 11 21.1l1.7-1.7"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 20h14"/></symbol>
+    <symbol id="i-paste" viewBox="0 0 24 24"><path d="M8 4H5a2 2 0 0 0-2 2v14h14v-3"/><path d="M9 2h6v4H9zM13 10h8v11h-8zM16 13h2M16 17h2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></symbol>
+    <symbol id="i-merge" viewBox="0 0 24 24"><path d="M6 3v4a5 5 0 0 0 5 5h2a5 5 0 0 1 5 5v4"/><path d="m14 18 4 4 4-4M6 21V3"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V3M7 8l5-5 5 5"/><path d="M5 12v8h14v-8"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M2 14h4M10 8h4M18 16h4"/></symbol>
+    <symbol id="i-speed" viewBox="0 0 24 24"><path d="M12 14 16 8"/><path d="M3 13a9 9 0 1 1 18 0"/><path d="M5 19h14"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 12h3l3-8 5 16 3-8h6"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 15.5A8 8 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z"/><path d="M16 3v4M14 5h4"/></symbol>
+    <symbol id="i-drive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18M7 17h.01M11 17h.01"/></symbol>
+    <symbol id="i-signal" viewBox="0 0 24 24"><path d="M2 8a15 15 0 0 1 20 0M5 11a10 10 0 0 1 14 0M8.5 14.5a5 5 0 0 1 7 0M12 19h.01"/></symbol>
+    <symbol id="i-airplay" viewBox="0 0 24 24"><path d="M5 19H3V5h18v14h-2"/><path d="m8 17 4-5 4 5z"/></symbol>
+    <symbol id="i-lyrics" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 4a8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/><path d="M8 10h8M8 14h5"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="19" r="1"/></symbol>
+    <symbol id="i-plus-square" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+  </svg>
+
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Music · Complete interface preview</div>
+      <h1>Every screen, one calm system.</h1>
+      <p>A static visual walkthrough of the library, playback, search, settings, and the app’s key sheets and dialogs. The mini player and four-tab glass bar appear on the main app screens.</p>
+    </div>
+    <div class="legend">
+      <span><b>Dark</b> first</span><span><b>Indigo</b> accent</span><span><b>SF-like</b> icon family</span>
+    </div>
+  </header>
+  <nav class="screen-nav" aria-label="Preview sections">
+    <a href="#library">Library</a><a href="#search">Search</a><a href="#playlists">Playlists</a>
+    <a href="#settings">Settings</a><a href="#player">Playback</a><a href="#sheets">Sheets &amp; menus</a>
+    <a href="#merge">Merge flows</a><a href="#empty">Empty &amp; offline</a>
+  </nav>
+
+  <main class="board">
+    <section class="preview" id="library">
+      <h2>Library <span>· Songs</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><span class="title-small">Good evening</span><div class="actions"><span class="toolbar-button"><svg class="icon md"><use href="#i-search"/></svg></span><span class="toolbar-button active"><svg class="icon md"><use href="#i-plus"/></svg></span></div></div>
+          <div class="segmented pill"><span class="selected">Songs</span><span>Albums</span><span>Artists</span><span>Favorites</span></div>
+          <div class="section-row"><h3>Recently Added</h3><span class="see-all">See all</span></div>
+          <div class="recent">
+            <div class="recent-card"><div class="art art-a art-lg"><svg class="icon xl"><use href="#i-note"/></svg></div><div class="recent-title ellipsis">Blue Hour</div><div class="sub caption ellipsis">Maya Sol</div></div>
+            <div class="recent-card"><div class="art art-b art-lg"><svg class="icon xl"><use href="#i-note"/></svg></div><div class="recent-title ellipsis">Small Hours</div><div class="sub caption ellipsis">North Coast</div></div>
+            <div class="recent-card"><div class="art art-d art-lg"><svg class="icon xl"><use href="#i-note"/></svg></div><div class="recent-title ellipsis">Paper Moons</div><div class="sub caption ellipsis">Lena Grey</div></div>
+          </div>
+          <div class="section-row"><h3>All Songs</h3><span class="sub caption">A–Z</span></div>
+          <div class="row-gap">
+            <div class="track playing"><div class="art art-a art-sm"><span class="equalizer"><i></i><i></i><i></i></span></div><div class="track-copy"><div class="track-title ellipsis">Drift into Morning</div><div class="track-sub ellipsis">Maya Sol · Blue Hour</div></div><span class="row-more"><svg class="icon"><use href="#i-more"/></svg></span></div>
+            <div class="track"><div class="art art-c art-sm"><svg class="icon"><use href="#i-note"/></svg></div><div class="track-copy"><div class="track-title ellipsis">Golden Thread</div><div class="track-sub ellipsis">Noah Vale · Stillwater</div></div><span class="row-more"><svg class="icon"><use href="#i-more"/></svg></span></div>
+            <div class="track"><div class="art art-e art-sm"><svg class="icon"><use href="#i-note"/></svg></div><div class="track-copy"><div class="track-title ellipsis">Soft Landing</div><div class="track-sub ellipsis">North Coast · Open Sky</div></div><span class="row-more"><svg class="icon"><use href="#i-more"/></svg></span></div>
+          </div>
+        </div>
+        <div class="mini glass"><div class="art art-a"></div><div class="mini-copy"><div class="mini-title">Drift into Morning</div><div class="mini-artist">Maya Sol</div></div><span class="icon-button"><svg class="icon md"><use href="#i-pause"/></svg></span><span class="icon-button"><svg class="icon md"><use href="#i-next"/></svg></span><div class="progress-line"><i></i></div></div>
+        <nav class="tabs"><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Library <span>· Albums</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><span class="page-title" style="margin:0">Library</span><div class="actions"><span class="toolbar-button"><svg class="icon md"><use href="#i-search"/></svg></span><span class="toolbar-button active"><svg class="icon md"><use href="#i-plus"/></svg></span></div></div>
+          <div class="segmented pill"><span>Songs</span><span class="selected">Albums</span><span>Artists</span><span>Favorites</span></div>
+          <div class="grid-albums" style="margin-top:16px">
+            <div><div class="art art-a art-square"><svg class="icon xl"><use href="#i-note"/></svg></div><div class="album-title ellipsis">Blue Hour</div><div class="sub subhead ellipsis">Maya Sol</div></div>
+            <div><div class="art art-c art-square"><svg class="icon xl"><use href="#i-note"/></svg></div><div class="album-title ellipsis">Stillwater</div><div class="sub subhead ellipsis">Noah Vale</div></div>
+            <div><div class="art art-e art-square"><svg class="icon xl"><use href="#i-note"/></svg></div><div class="album-title ellipsis">Open Sky</div><div class="sub subhead ellipsis">North Coast</div></div>
+            <div><div class="art art-d art-square"><svg class="icon xl"><use href="#i-note"/></svg></div><div class="album-title ellipsis">Paper Moons</div><div class="sub subhead ellipsis">Lena Grey</div></div>
+          </div>
+        </div>
+        <div class="mini glass"><div class="art art-a"></div><div class="mini-copy"><div class="mini-title">Drift into Morning</div><div class="mini-artist">Maya Sol</div></div><span class="icon-button"><svg class="icon md"><use href="#i-play"/></svg></span><span class="icon-button"><svg class="icon md"><use href="#i-next"/></svg></span><div class="progress-line"><i></i></div></div>
+        <nav class="tabs"><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Library <span>· Artists</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><span class="page-title" style="margin:0">Library</span><div class="actions"><span class="toolbar-button"><svg class="icon md"><use href="#i-search"/></svg></span><span class="toolbar-button active"><svg class="icon md"><use href="#i-plus"/></svg></span></div></div>
+          <div class="segmented pill"><span>Songs</span><span>Albums</span><span class="selected">Artists</span><span>Favorites</span></div>
+          <div class="section-row"><h3>Artists</h3></div>
+          <div class="artist-row"><div class="artist-avatar">MS</div><div class="track-copy"><div class="track-title">Maya Sol</div><div class="track-sub">12 songs</div></div><svg class="icon"><use href="#i-chevron"/></svg></div>
+          <div class="artist-row"><div class="artist-avatar" style="background:linear-gradient(135deg,#9b805f,#3c5143)">NV</div><div class="track-copy"><div class="track-title">Noah Vale</div><div class="track-sub">8 songs</div></div><svg class="icon"><use href="#i-chevron"/></svg></div>
+          <div class="artist-row"><div class="artist-avatar" style="background:linear-gradient(135deg,#657d94,#373a59)">NC</div><div class="track-copy"><div class="track-title">North Coast</div><div class="track-sub">16 songs</div></div><svg class="icon"><use href="#i-chevron"/></svg></div>
+          <div class="artist-row"><div class="artist-avatar" style="background:linear-gradient(135deg,#8b6c7f,#3e374d)">LG</div><div class="track-copy"><div class="track-title">Lena Grey</div><div class="track-sub">6 songs</div></div><svg class="icon"><use href="#i-chevron"/></svg></div>
+        </div>
+        <div class="mini glass"><div class="art art-a"></div><div class="mini-copy"><div class="mini-title">Drift into Morning</div><div class="mini-artist">Maya Sol</div></div><span class="icon-button"><svg class="icon md"><use href="#i-pause"/></svg></span><span class="icon-button"><svg class="icon md"><use href="#i-next"/></svg></span><div class="progress-line"><i></i></div></div>
+        <nav class="tabs"><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Favorites <span>· Library section</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><span class="page-title" style="margin:0">Library</span><div class="actions"><span class="toolbar-button"><svg class="icon md"><use href="#i-search"/></svg></span><span class="toolbar-button active"><svg class="icon md"><use href="#i-plus"/></svg></span></div></div>
+          <div class="segmented pill"><span>Songs</span><span>Albums</span><span>Artists</span><span class="selected">Favorites</span></div>
+          <div class="section-row"><h3>Your saved songs</h3></div>
+          <div style="display:flex;gap:10px;margin-bottom:12px"><button class="primary-button" style="flex:1"><svg class="icon"><use href="#i-play"/></svg>Play</button><button class="secondary-button" style="flex:1"><svg class="icon"><use href="#i-shuffle"/></svg>Shuffle</button></div>
+          <div class="row-gap">
+            <div class="track"><div class="art art-c art-sm"><svg class="icon"><use href="#i-note"/></svg></div><div class="track-copy"><div class="track-title">Golden Thread</div><div class="track-sub">Noah Vale · Stillwater</div></div><svg class="icon active"><use href="#i-heart"/></svg><span class="row-more"><svg class="icon"><use href="#i-more"/></svg></span></div>
+            <div class="track"><div class="art art-d art-sm"><svg class="icon"><use href="#i-note"/></svg></div><div class="track-copy"><div class="track-title">Paper Moons</div><div class="track-sub">Lena Grey · Paper Moons</div></div><svg class="icon active"><use href="#i-heart"/></svg><span class="row-more"><svg class="icon"><use href="#i-more"/></svg></span></div>
+            <div class="track"><div class="art art-e art-sm"><svg class="icon"><use href="#i-note"/></svg></div><div class="track-copy"><div class="track-title">Soft Landing</div><div class="track-sub">North Coast · Open Sky</div></div><svg class="icon active"><use href="#i-heart"/></svg><span class="row-more"><svg class="icon"><use href="#i-more"/></svg></span></div>
+          </div>
+        </div>
+        <div class="mini glass"><div class="art art-a"></div><div class="mini-copy"><div class="mini-title">Drift into Morning</div><div class="mini-artist">Maya Sol</div></div><span class="icon-button"><svg class="icon md"><use href="#i-pause"/></svg></span><span class="icon-button"><svg class="icon md"><use href="#i-next"/></svg></span><div class="progress-line"><i></i></div></div>
+        <nav class="tabs"><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview" id="search">
+      <h2>Search <span>· Recent searches</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><h1 class="page-title" style="margin:0">Search</h1></div>
+          <div style="display:flex;align-items:center;gap:8px"><div class="searchbar"><svg class="icon"><use href="#i-search"/></svg><span class="sub">Songs, artists, albums</span></div><span class="active subhead">Cancel</span></div>
+          <div class="filters"><span class="filter selected">All</span><span class="filter">Songs</span><span class="filter">Albums</span><span class="filter">Artists</span></div>
+          <div class="section-row"><h3>Recent searches</h3><span class="see-all">Clear all</span></div>
+          <div class="recent-search"><svg class="icon sub"><use href="#i-clock"/></svg><span class="label body">morning</span><svg class="icon sub"><use href="#i-close"/></svg></div>
+          <div class="recent-search"><svg class="icon sub"><use href="#i-clock"/></svg><span class="label body">Maya Sol</span><svg class="icon sub"><use href="#i-close"/></svg></div>
+          <div class="recent-search"><svg class="icon sub"><use href="#i-clock"/></svg><span class="label body">Blue Hour</span><svg class="icon sub"><use href="#i-close"/></svg></div>
+        </div>
+        <nav class="tabs"><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Search <span>· Local and online results</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><h1 class="page-title" style="margin:0">Search</h1></div>
+          <div style="display:flex;align-items:center;gap:8px"><div class="searchbar"><svg class="icon"><use href="#i-search"/></svg><span>morning</span><svg class="icon sub"><use href="#i-close"/></svg></div><span class="active subhead">Cancel</span></div>
+          <div class="offline pill"><svg class="icon"><use href="#i-offline"/></svg><span class="caption">Offline — showing your library only</span></div>
+          <div class="filters"><span class="filter selected">All</span><span class="filter">Songs</span><span class="filter">Albums</span><span class="filter">Artists</span></div>
+          <div class="section-row"><h3>On this device</h3></div>
+          <div class="glass card-list">
+            <div class="track playing"><div class="art art-a art-sm"><span class="equalizer"><i></i><i></i><i></i></span></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · Blue Hour</div></div><span class="row-more"><svg class="icon"><use href="#i-more"/></svg></span></div>
+            <div class="track"><div class="art art-b art-sm"><svg class="icon"><use href="#i-note"/></svg></div><div class="track-copy"><div class="track-title">Morning Light</div><div class="track-sub">North Coast · Open Sky</div></div><span class="row-more"><svg class="icon"><use href="#i-more"/></svg></span></div>
+          </div>
+        </div>
+        <div class="mini glass"><div class="art art-a"></div><div class="mini-copy"><div class="mini-title">Drift into Morning</div><div class="mini-artist">Maya Sol</div></div><span class="icon-button"><svg class="icon md"><use href="#i-pause"/></svg></span><span class="icon-button"><svg class="icon md"><use href="#i-next"/></svg></span><div class="progress-line"><i></i></div></div>
+        <nav class="tabs"><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Search <span>· No results</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><h1 class="page-title" style="margin:0">Search</h1></div>
+          <div style="display:flex;align-items:center;gap:8px"><div class="searchbar"><svg class="icon"><use href="#i-search"/></svg><span>midnight train</span><svg class="icon sub"><use href="#i-close"/></svg></div><span class="active subhead">Cancel</span></div>
+          <div class="filters"><span class="filter selected">All</span><span class="filter">Songs</span><span class="filter">Albums</span><span class="filter">Artists</span></div>
+          <div class="empty"><span class="empty-icon glass"><svg class="icon xl"><use href="#i-search"/></svg></span><h3>No search results</h3><p>Try a different title, artist, or album.</p><button class="primary-button">Clear Search</button></div>
+        </div>
+        <nav class="tabs"><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Search <span>· Online feed results loading</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><h1 class="page-title" style="margin:0">Search</h1></div>
+          <div style="display:flex;align-items:center;gap:8px"><div class="searchbar"><svg class="icon"><use href="#i-search"/></svg><span>Blue Hour</span><svg class="icon sub"><use href="#i-close"/></svg></div><span class="active subhead">Cancel</span></div>
+          <div class="filters"><span class="filter selected">All</span><span class="filter">Songs</span><span class="filter">Albums</span><span class="filter">Artists</span></div>
+          <div class="section-row"><h3>On this device</h3></div>
+          <div class="glass card-list"><div class="track"><div class="art art-a art-sm"></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · Blue Hour</div></div></div></div>
+          <div class="section-row"><h3>Online</h3><span class="progress-ring"></span></div>
+          <div class="glass card-list">
+            <div class="track"><div class="art art-c art-sm"></div><div class="track-copy"><div class="track-title">Loading result</div><div class="track-sub">Remote feed</div></div></div>
+            <div class="track"><div class="art art-e art-sm"></div><div class="track-copy"><div class="track-title">Loading result</div><div class="track-sub">Remote feed</div></div></div>
+          </div>
+        </div>
+        <div class="mini glass"><div class="art art-a"></div><div class="mini-copy"><div class="mini-title">Drift into Morning</div><div class="mini-artist">Maya Sol</div></div><span class="icon-button"><svg class="icon md"><use href="#i-pause"/></svg></span><span class="icon-button"><svg class="icon md"><use href="#i-next"/></svg></span><div class="progress-line"><i></i></div></div>
+        <nav class="tabs"><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview" id="playlists">
+      <h2>Playlists <span>· Library</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><h1 class="page-title" style="margin:0">Playlists</h1><span class="toolbar-button active"><svg class="icon md"><use href="#i-plus"/></svg></span></div>
+          <div class="glass playlist-row" style="padding:10px 12px;margin:12px 0 16px"><span class="option-icon" style="width:44px;height:44px;border-radius:50%"><svg class="icon md"><use href="#i-plus"/></svg></span><strong class="body">New Playlist</strong><span style="flex:1"></span></div>
+          <div class="playlist-row"><div class="mosaic"><div class="art art-a"></div><div class="art art-b"></div><div class="art art-c"></div><div class="art art-d"></div></div><div class="track-copy"><div class="track-title">Slow mornings</div><div class="track-sub">12 songs</div></div><svg class="icon sub"><use href="#i-chevron"/></svg></div>
+          <div class="playlist-row"><div class="mosaic"><div class="art art-e"></div><div class="art art-c"></div><div class="art art-a"></div><div class="art art-f"></div></div><div class="track-copy"><div class="track-title">Evening focus</div><div class="track-sub">8 songs</div></div><svg class="icon sub"><use href="#i-chevron"/></svg></div>
+          <div class="playlist-row"><div class="mosaic"><div class="art art-d"></div><div class="art art-e"></div><div class="art art-b"></div><div class="art art-a"></div></div><div class="track-copy"><div class="track-title">On the way home</div><div class="track-sub">21 songs</div></div><svg class="icon sub"><use href="#i-chevron"/></svg></div>
+        </div>
+        <div class="mini glass"><div class="art art-a"></div><div class="mini-copy"><div class="mini-title">Drift into Morning</div><div class="mini-artist">Maya Sol</div></div><span class="icon-button"><svg class="icon md"><use href="#i-pause"/></svg></span><span class="icon-button"><svg class="icon md"><use href="#i-next"/></svg></span><div class="progress-line"><i></i></div></div>
+        <nav class="tabs"><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Playlist details <span>· Reorder mode</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><span class="toolbar-button"><svg class="icon"><use href="#i-down"/></svg></span><span class="sub">Slow mornings</span><span class="toolbar-button">Edit</span></div>
+          <div class="art art-a art-square" style="width:200px;height:200px;margin:8px auto 16px;border-radius:24px"><svg class="icon xl"><use href="#i-note"/></svg></div>
+          <h1 class="title-small" style="text-align:center;font-size:28px">Slow mornings</h1>
+          <p class="sub subhead" style="text-align:center;margin:8px 0 18px">12 songs · 48 min</p>
+          <div style="display:flex;gap:12px"><button class="primary-button full"><svg class="icon"><use href="#i-play"/></svg>Play</button><button class="secondary-button full"><svg class="icon"><use href="#i-shuffle"/></svg>Shuffle</button></div>
+          <div class="section-row"><h3>Add songs</h3><svg class="icon active"><use href="#i-plus"/></svg></div>
+          <div class="track"><div class="art art-a art-sm"></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · Blue Hour</div></div><svg class="icon sub"><use href="#i-grip"/></svg></div>
+          <div class="track"><div class="art art-c art-sm"></div><div class="track-copy"><div class="track-title">Golden Thread</div><div class="track-sub">Noah Vale · Stillwater</div></div><svg class="icon sub"><use href="#i-grip"/></svg></div>
+        </div>
+        <nav class="tabs"><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Add songs <span>· Selection</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen no-tabs" style="padding-bottom:90px">
+          <div class="navline"><span class="toolbar-button"><svg class="icon"><use href="#i-close"/></svg></span><h2 class="title-small">Add Songs</h2><span style="width:44px"></span></div>
+          <div class="track"><span class="check"></span><div class="art art-a art-sm"></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · Blue Hour</div></div></div>
+          <div class="track"><span class="check on"><svg class="icon sm"><use href="#i-check"/></svg></span><div class="art art-c art-sm"></div><div class="track-copy"><div class="track-title">Golden Thread</div><div class="track-sub">Noah Vale · Stillwater</div></div></div>
+          <div class="track"><span class="check on"><svg class="icon sm"><use href="#i-check"/></svg></span><div class="art art-e art-sm"></div><div class="track-copy"><div class="track-title">Soft Landing</div><div class="track-sub">North Coast · Open Sky</div></div></div>
+          <div class="track"><span class="check"></span><div class="art art-d art-sm"></div><div class="track-copy"><div class="track-title">Paper Moons</div><div class="track-sub">Lena Grey · Paper Moons</div></div></div>
+          <div class="bottom-cta"><button class="primary-button full">Add 2 songs</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview" id="settings">
+      <h2>Settings <span>· Grouped controls</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><h1 class="page-title" style="margin:0">Settings</h1></div>
+          <div class="setting-label">PLAYBACK</div>
+          <div class="glass setting-card">
+            <div class="setting-row"><span class="setting-icon"><svg class="icon"><use href="#i-sliders"/></svg></span>EQ preset<span class="setting-value">Warm <svg class="icon sm"><use href="#i-chevron"/></svg></span></div><div class="divider"></div>
+            <div class="setting-row"><span class="setting-icon"><svg class="icon"><use href="#i-speed"/></svg></span>Playback speed<span class="setting-value">1.0x</span></div><div class="divider"></div>
+            <div class="setting-row"><span class="setting-icon"><svg class="icon"><use href="#i-wave"/></svg></span>Crossfade<span class="setting-value">1.0s</span></div><div class="divider"></div>
+            <div class="setting-row"><span class="setting-icon"><svg class="icon"><use href="#i-wave"/></svg></span>Gapless playback<span class="switch"></span></div>
+          </div>
+          <div class="setting-label">LIBRARY AND OFFLINE</div>
+          <div class="glass setting-card">
+            <div class="setting-row"><span class="setting-icon"><svg class="icon"><use href="#i-merge"/></svg></span>Auto-merge duplicates<span class="switch" style="background:#3b3d45"><i></i></span></div><div class="divider"></div>
+            <div class="setting-row"><span class="setting-icon"><svg class="icon"><use href="#i-offline"/></svg></span>Offline mode<span class="setting-value">Automatic</span></div><div class="divider"></div>
+            <div class="setting-row"><span class="setting-icon"><svg class="icon"><use href="#i-signal"/></svg></span>Remote feeds<span class="setting-value">2 feeds</span></div>
+          </div>
+          <div class="setting-label">SLEEP TIMER AND STORAGE</div>
+          <div class="glass setting-card"><div class="setting-row"><span class="setting-icon"><svg class="icon"><use href="#i-moon"/></svg></span>Sleep timer<span class="setting-value">30 min</span></div><div class="divider"></div><div class="setting-row"><span class="setting-icon"><svg class="icon"><use href="#i-drive"/></svg></span>Storage<span class="setting-value">1.2 GB</span></div></div>
+        </div>
+        <div class="mini glass"><div class="art art-a"></div><div class="mini-copy"><div class="mini-title">Drift into Morning</div><div class="mini-artist">Maya Sol</div></div><span class="icon-button"><svg class="icon md"><use href="#i-pause"/></svg></span><span class="icon-button"><svg class="icon md"><use href="#i-next"/></svg></span><div class="progress-line"><i></i></div></div>
+        <nav class="tabs"><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview" id="player">
+      <h2>Now Playing <span>· Full-screen player</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen no-tabs" style="padding-top:54px">
+          <div class="navline"><span class="toolbar-button"><svg class="icon"><use href="#i-down"/></svg></span><span class="sub caption">NOW PLAYING</span><span class="toolbar-button"><svg class="icon"><use href="#i-more"/></svg></span></div>
+          <div class="art art-a art-player now-art"><svg class="icon xl"><use href="#i-note"/></svg></div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:22px"><div style="min-width:0;flex:1"><div class="title-small ellipsis">Drift into Morning</div><div class="sub body ellipsis" style="margin-top:5px">Maya Sol</div></div><span class="icon-button active"><svg class="icon lg"><use href="#i-heart"/></svg></span></div>
+          <div class="scrubber"></div><div class="sub caption mono" style="display:flex;justify-content:space-between"><span>1:42</span><span>−2:18</span></div>
+          <div class="player-controls"><span><svg class="icon xl"><use href="#i-back"/></svg></span><span><svg class="icon md"><use href="#i-prev"/></svg></span><span class="play-circle"><svg class="icon lg"><use href="#i-pause"/></svg></span><span><svg class="icon md"><use href="#i-next"/></svg></span><span><svg class="icon xl"><use href="#i-forward"/></svg></span></div>
+          <div class="player-secondary"><svg class="icon"><use href="#i-shuffle"/></svg><svg class="icon"><use href="#i-repeat"/></svg><svg class="icon"><use href="#i-airplay"/></svg><svg class="icon"><use href="#i-lyrics"/></svg><svg class="icon"><use href="#i-queue"/></svg></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview" id="sheets">
+      <h2>Song actions <span>· Context menu</span></h2>
+      <div class="device sheet-dim">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><h1 class="page-title" style="margin:0">Library</h1><span class="toolbar-button active"><svg class="icon md"><use href="#i-plus"/></svg></span></div>
+          <div class="segmented pill"><span class="selected">Songs</span><span>Albums</span><span>Artists</span><span>Favorites</span></div>
+          <div class="track"><div class="art art-a art-sm"></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · Blue Hour</div></div></div>
+        </div>
+        <div class="menu-card">
+          <div class="menu-head"><div class="art art-a" style="width:40px;height:40px"></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · Blue Hour</div></div></div>
+          <div class="menu-row"><svg class="icon"><use href="#i-next"/></svg>Play Next</div><div class="menu-row"><svg class="icon"><use href="#i-list"/></svg>Add to Queue</div>
+          <div class="menu-row"><svg class="icon"><use href="#i-heart"/></svg>Add to Favorites</div><div class="menu-row"><svg class="icon"><use href="#i-plus-square"/></svg>Add to Playlist</div>
+          <div class="menu-row"><svg class="icon"><use href="#i-merge"/></svg>Merge with…</div><div class="menu-row"><svg class="icon"><use href="#i-share"/></svg>Share</div><div class="menu-separator"></div><div class="menu-row destructive"><svg class="icon"><use href="#i-trash"/></svg>Delete from Library</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Import <span>· Source chooser sheet</span></h2>
+      <div class="device sheet-dim">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen"><h1 class="page-title">Library</h1><div class="segmented pill"><span class="selected">Songs</span><span>Albums</span><span>Artists</span><span>Favorites</span></div></div>
+        <div class="mini glass"><div class="art art-a"></div><div class="mini-copy"><div class="mini-title">Drift into Morning</div><div class="mini-artist">Maya Sol</div></div><span class="icon-button"><svg class="icon md"><use href="#i-pause"/></svg></span></div>
+        <div class="sheet">
+          <div class="grabber"></div><div class="sheet-title">Add music</div>
+          <div class="sheet-option glass"><span class="option-icon"><svg class="icon md"><use href="#i-folder"/></svg></span><div><div class="body" style="font-weight:650">From Files</div><div class="sub subhead">Import audio stored on this device</div></div></div>
+          <div class="sheet-option glass disabled"><span class="option-icon"><svg class="icon md"><use href="#i-link"/></svg></span><div><div class="body" style="font-weight:650">From URL</div><div class="sub subhead">Connect to the internet to import from a link</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Import from Files <span>· iOS document picker</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen no-tabs" style="padding:0;background:#f4f4f7;color:#17171a">
+          <div style="padding:54px 20px 14px;background:#f4f4f7">
+            <div class="navline"><span style="color:var(--accent)">Cancel</span><h2 class="title-small">Browse</h2><span style="color:var(--accent)">Select</span></div>
+            <div class="field" style="background:#e5e5ea;border-radius:12px;color:#68686e"><svg class="icon"><use href="#i-search"/></svg><span class="field-line">Search Files</span></div>
+          </div>
+          <div style="padding:8px 20px;color:#777;font-size:13px;font-weight:650;letter-spacing:.08em">LOCATIONS</div>
+          <div style="background:white;padding:0 20px">
+            <div class="setting-row" style="color:#17171a"><svg class="icon active"><use href="#i-phone"/></svg>On My iPhone<span style="margin-left:auto;color:#929299">›</span></div>
+            <div class="divider" style="background:#e6e6e8"></div>
+            <div class="setting-row" style="color:#17171a"><svg class="icon active"><use href="#i-drive"/></svg>iCloud Drive<span style="margin-left:auto;color:#929299">›</span></div>
+            <div class="divider" style="background:#e6e6e8"></div>
+            <div class="setting-row" style="color:#17171a"><svg class="icon active"><use href="#i-folder"/></svg>Recently Deleted<span style="margin-left:auto;color:#929299">›</span></div>
+          </div>
+          <div style="padding:22px 20px 8px;color:#777;font-size:13px;font-weight:650;letter-spacing:.08em">RECENTS</div>
+          <div style="background:white;padding:0 20px">
+            <div class="setting-row" style="color:#17171a"><svg class="icon active"><use href="#i-note"/></svg>Drift into Morning.m4a<span style="margin-left:auto;color:#929299">Today</span></div>
+            <div class="divider" style="background:#e6e6e8"></div>
+            <div class="setting-row" style="color:#17171a"><svg class="icon active"><use href="#i-note"/></svg>Golden Thread.flac<span style="margin-left:auto;color:#929299">Yesterday</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Create playlist <span>· Bottom sheet</span></h2>
+      <div class="device sheet-dim">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen"><div class="navline"><h1 class="page-title">Playlists</h1></div><div class="playlist-row glass" style="padding:10px 12px"><div class="mosaic"><div class="art art-a"></div><div class="art art-b"></div><div class="art art-c"></div><div class="art art-d"></div></div><div class="track-copy">Slow mornings</div></div></div>
+        <div class="sheet">
+          <div class="grabber"></div><div style="display:flex;align-items:center;justify-content:space-between"><div class="sheet-title">New Playlist</div><span class="icon-button"><svg class="icon"><use href="#i-close"/></svg></span></div>
+          <div class="field glass"><span class="field-line">Playlist name</span></div>
+          <button class="primary-button full" style="margin-top:16px">Create</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Import from URL <span>· Validation and progress</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen no-tabs">
+          <div class="navline"><span class="toolbar-button"><svg class="icon"><use href="#i-close"/></svg></span><h2 class="title-small">Import from URL</h2><span style="width:44px"></span></div>
+          <div class="glass" style="padding:16px;margin-top:16px"><div class="title-small" style="font-size:20px;margin-bottom:12px">Direct audio URL</div><div class="field glass"><svg class="icon"><use href="#i-link"/></svg><span class="field-line ellipsis">https://example.com/song.m4a</span><svg class="icon"><use href="#i-paste"/></svg></div><div style="display:flex;align-items:center;gap:7px;color:var(--success);margin-top:12px"><svg class="icon sm"><use href="#i-check"/></svg><span class="subhead">URL looks valid</span></div></div>
+          <div class="glass" style="padding:16px;margin-top:16px"><div class="subhead" style="margin-bottom:12px">Downloading audio…</div><div class="track-progress"><i></i></div><div class="sub caption" style="margin-top:10px">61% · 8.4 MB</div><button class="secondary-button full" style="margin-top:12px">Cancel download</button></div>
+          <button class="primary-button full" style="margin-top:18px"><svg class="icon"><use href="#i-download"/></svg>Download</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview" id="merge">
+      <h2>Merge songs <span>· Select and configure</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen no-tabs" style="padding-bottom:95px">
+          <div class="navline"><span class="toolbar-button"><svg class="icon"><use href="#i-close"/></svg></span><h2 class="title-small">Merge audio</h2><span style="width:44px"></span></div>
+          <h1 class="page-title" style="font-size:30px;margin:20px 0 5px">Select songs</h1><div class="sub subhead">3 selected</div>
+          <div class="glass card-list" style="margin-top:14px">
+            <div class="track"><span class="check on"><svg class="icon sm"><use href="#i-check"/></svg></span><div class="art art-a art-sm"></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · Blue Hour</div></div></div>
+            <div class="track"><span class="check on"><svg class="icon sm"><use href="#i-check"/></svg></span><div class="art art-c art-sm"></div><div class="track-copy"><div class="track-title">Golden Thread</div><div class="track-sub">Noah Vale · Stillwater</div></div></div>
+            <div class="track"><span class="check on"><svg class="icon sm"><use href="#i-check"/></svg></span><div class="art art-e art-sm"></div><div class="track-copy"><div class="track-title">Soft Landing</div><div class="track-sub">North Coast · Open Sky</div></div></div>
+          </div>
+          <div class="glass" style="padding:14px;margin-top:16px"><div class="body" style="font-weight:650">Crossfade</div><div class="stepper"><button>−</button><strong class="mono" style="font-size:24px">4s</strong><button>+</button></div><div class="sub caption">A new audio file is created. Your originals are kept.</div></div>
+          <div class="bottom-cta"><button class="primary-button full"><svg class="icon"><use href="#i-merge"/></svg>Merge 3 songs</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Merge songs <span>· Exporting</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen no-tabs">
+          <div class="navline"><span class="toolbar-button"><svg class="icon"><use href="#i-close"/></svg></span><h2 class="title-small">Merge audio</h2><span style="width:44px"></span></div>
+          <div class="empty" style="min-height:320px"><span class="empty-icon glass"><span class="progress-ring"></span></span><h3>Merging your audio…</h3><p>Combining 3 songs and applying a 4-second crossfade.</p></div>
+          <div class="glass" style="padding:16px"><div class="track-progress"><i style="width:63%"></i></div><div class="sub caption" style="margin-top:10px">Preparing export…</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Duplicate merge <span>· Confirmation</span></h2>
+      <div class="device sheet-dim">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen"><h1 class="page-title">Review duplicates</h1><div class="glass card-list"><div class="track"><div class="art art-a art-sm"></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · 256 kbps</div></div></div><div class="track"><div class="art art-a art-sm"></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · 128 kbps</div></div></div></div></div>
+        <div class="sheet"><div class="grabber"></div><div class="sheet-title">Merge duplicates?</div><p class="sub subhead">Keep the higher-quality file and combine missing tags, artwork, play count, and favorites. Original files are never deleted.</p><div class="sheet-actions"><button class="secondary-button">Not now</button><button class="primary-button">Review 2 tracks</button></div></div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Delete from library <span>· Confirmation alert</span></h2>
+      <div class="device sheet-dim">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen"><h1 class="page-title">Library</h1><div class="track"><div class="art art-a art-sm"></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · Blue Hour</div></div></div></div>
+        <div class="glass" style="position:absolute;z-index:8;left:34px;right:34px;top:315px;padding:20px;text-align:center;border-radius:24px;background:rgba(38,39,47,.98)">
+          <div style="font-size:17px;font-weight:650;margin-bottom:8px">Remove from Library?</div>
+          <div class="sub subhead">The song will be removed from Music and playlists. Its original audio file in Files will not be deleted.</div>
+          <div style="height:1px;background:var(--border);margin:18px -20px 0"></div>
+          <div style="height:48px;display:grid;place-items:center;color:var(--danger);font-size:17px">Remove from Library</div>
+          <div style="height:1px;background:var(--border);margin:0 -20px"></div>
+          <div style="height:48px;display:grid;place-items:center;color:var(--accent);font-size:17px">Cancel</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Playlist merge <span>· New playlist name</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen no-tabs">
+          <div class="navline"><span class="toolbar-button"><svg class="icon"><use href="#i-close"/></svg></span><h2 class="title-small">Merge playlists</h2><span style="width:44px"></span></div>
+          <div class="section-row"><h3>Select playlists</h3><span class="active">2 selected</span></div>
+          <div class="glass card-list">
+            <div class="choice-row"><span class="check on"><svg class="icon sm"><use href="#i-check"/></svg></span><div class="mosaic"><div class="art art-a"></div><div class="art art-b"></div><div class="art art-c"></div><div class="art art-d"></div></div><div class="track-copy">Slow mornings</div></div>
+            <div class="choice-row"><span class="check on"><svg class="icon sm"><use href="#i-check"/></svg></span><div class="mosaic"><div class="art art-e"></div><div class="art art-c"></div><div class="art art-a"></div><div class="art art-f"></div></div><div class="track-copy">Evening focus</div></div>
+          </div>
+          <div class="field glass" style="margin-top:16px"><span class="field-line">Merged playlist name</span></div>
+          <div class="bottom-cta"><button class="primary-button full">Create merged playlist</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>Queue <span>· Reorderable playback</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen no-tabs">
+          <div class="navline"><span class="toolbar-button"><svg class="icon"><use href="#i-down"/></svg></span><h2 class="title-small">Up Next</h2><span class="toolbar-button"><svg class="icon"><use href="#i-more"/></svg></span></div>
+          <div class="section-row"><h3>Now Playing</h3></div>
+          <div class="track playing"><div class="art art-a art-sm"><span class="equalizer"><i></i><i></i><i></i></span></div><div class="track-copy"><div class="track-title">Drift into Morning</div><div class="track-sub">Maya Sol · Blue Hour</div></div><span class="active"><svg class="icon"><use href="#i-pause"/></svg></span></div>
+          <div class="section-row"><h3>Up Next</h3><span class="see-all">Clear</span></div>
+          <div class="queue-row"><div class="art art-c art-sm"></div><div class="track-copy"><div class="track-title">Golden Thread</div><div class="track-sub">Noah Vale · Stillwater</div></div><span class="drag"><svg class="icon"><use href="#i-grip"/></svg></span></div>
+          <div class="queue-row"><div class="art art-e art-sm"></div><div class="track-copy"><div class="track-title">Soft Landing</div><div class="track-sub">North Coast · Open Sky</div></div><span class="drag"><svg class="icon"><use href="#i-grip"/></svg></span></div>
+          <div class="queue-row"><div class="art art-d art-sm"></div><div class="track-copy"><div class="track-title">Paper Moons</div><div class="track-sub">Lena Grey · Paper Moons</div></div><span class="drag"><svg class="icon"><use href="#i-grip"/></svg></span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview" id="empty">
+      <h2>Empty library <span>· First run</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen">
+          <div class="navline"><h1 class="page-title">Library</h1><span class="toolbar-button active"><svg class="icon md"><use href="#i-plus"/></svg></span></div>
+          <div class="segmented pill"><span class="selected">Songs</span><span>Albums</span><span>Artists</span><span>Favorites</span></div>
+          <div class="empty"><span class="empty-icon glass"><svg class="icon xl"><use href="#i-note"/></svg></span><h3>Your library is empty</h3><p>Import music to start building your library.</p><button class="primary-button"><svg class="icon"><use href="#i-folder"/></svg>Import from Files</button></div>
+        </div>
+        <nav class="tabs"><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>No favorites <span>· Empty state</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen"><div class="navline"><h1 class="page-title">Library</h1></div><div class="segmented pill"><span>Songs</span><span>Albums</span><span>Artists</span><span class="selected">Favorites</span></div><div class="empty"><span class="empty-icon glass"><svg class="icon xl"><use href="#i-heart"/></svg></span><h3>No favorites yet</h3><p>Save songs you love and find them here.</p><button class="primary-button">Browse Songs</button></div></div>
+        <nav class="tabs"><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+
+    <section class="preview">
+      <h2>No playlists <span>· Empty state</span></h2>
+      <div class="device">
+        <div class="status"><span>9:41</span><span class="status-right">●●● <svg class="icon sm"><use href="#i-signal"/></svg> ▰</span></div><div class="dynamic-island"></div>
+        <div class="app-screen"><div class="navline"><h1 class="page-title">Playlists</h1><span class="toolbar-button active"><svg class="icon md"><use href="#i-plus"/></svg></span></div><div class="empty"><span class="empty-icon glass"><svg class="icon xl"><use href="#i-list"/></svg></span><h3>No playlists yet</h3><p>Create a playlist for any mood or moment.</p><button class="primary-button"><svg class="icon"><use href="#i-plus-square"/></svg>Create Playlist</button></div></div>
+        <nav class="tabs"><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-house"/></svg></span>Library</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-search"/></svg></span>Search</div><div class="tab selected"><span class="tab-icon"><svg class="icon md"><use href="#i-list"/></svg></span>Playlists</div><div class="tab"><span class="tab-icon"><svg class="icon md"><use href="#i-settings"/></svg></span>Settings</div></nav>
+      </div>
+    </section>
+  </main>
+  <footer style="max-width:1560px;margin:0 auto;padding:0 28px 36px;color:var(--secondary);font-size:13px">
+    Static design preview only. Illustrative states are not interactive and do not imply backend support; native pickers, playback, downloads, and accessibility behavior depend on the app implementation.
+  </footer>
+</body>
+</html>
